@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Scheduler</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
+      #app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+      aside { border-right: 1px solid #e5e7eb; padding: 12px; }
+      main { padding: 12px; }
+      .tag-values { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+      .filters { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <aside>
+        <h3>Фильтры</h3>
+        <div id="filters"></div>
+        <button id="createBtn">+ Событие</button>
+      </aside>
+      <main>
+        <div id="calendar"></div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <script>
+      const API = '/api';
+
+      async function fetchJSON(url, opts) {
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      async function loadTagsWithValues() {
+        const tags = await fetchJSON(`${API}/tags`);
+        const result = [];
+        for (const t of tags) {
+          const values = await fetchJSON(`${API}/tags/${t.id}/values`);
+          result.push({ tag: t, values });
+        }
+        return result;
+      }
+
+      function renderFilters(cont, groups, state) {
+        cont.innerHTML = '';
+        for (const g of groups) {
+          const h = document.createElement('div');
+          h.innerHTML = `<strong>${g.tag.name}</strong>`;
+          cont.appendChild(h);
+          const box = document.createElement('div');
+          box.className = 'tag-values';
+          for (const v of g.values) {
+            const id = `tv-${v.id}`;
+            const checked = state.has(v.id) ? 'checked' : '';
+            const item = document.createElement('label');
+            item.innerHTML = `<input type="checkbox" id="${id}" ${checked}/> ${v.value}`;
+            item.querySelector('input').addEventListener('change', (e)=>{
+              if (e.target.checked) state.add(v.id); else state.delete(v.id);
+              window.calendar.refetchEvents();
+            });
+            box.appendChild(item);
+          }
+          cont.appendChild(box);
+        }
+      }
+
+      async function main() {
+        const filtersEl = document.getElementById('filters');
+        const selected = new Set();
+        const groups = await loadTagsWithValues();
+        renderFilters(filtersEl, groups, selected);
+
+        const calendarEl = document.getElementById('calendar');
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'timeGridWeek',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+          locale: 'ru',
+          selectable: true,
+          editable: true,
+          eventSources: [{
+            events: async (info, success, failure) => {
+              try {
+                const params = new URLSearchParams();
+                params.set('from', info.startStr);
+                params.set('to', info.endStr);
+                if (selected.size) params.set('tag_value_ids', Array.from(selected).join(','));
+                const data = await fetchJSON(`${API}/schedules?${params}`);
+                const events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo }));
+                success(events);
+              } catch (err) { failure(err); }
+            }
+          }],
+          select: async (arg) => {
+            const title = prompt('Название события:');
+            if (!title) return;
+            const body = { title, dateFrom: arg.startStr, dateTo: arg.endStr, tagValueIds: Array.from(selected) };
+            const ev = await fetchJSON(`${API}/schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo });
+          },
+          eventDrop: async (info) => {
+            const ev = info.event;
+            await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+          },
+          eventResize: async (info) => {
+            const ev = info.event;
+            await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+          },
+          eventClick: async (info) => {
+            const ev = info.event;
+            const title = prompt('Новое название:', ev.title);
+            if (title == null) return;
+            const res = await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+            ev.setProp('title', res.title);
+          }
+        });
+        calendar.render();
+        window.calendar = calendar;
+
+        document.getElementById('createBtn').addEventListener('click', async ()=>{
+          const title = prompt('Название события:');
+          if (!title) return;
+          const now = new Date();
+          const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0).toISOString();
+          const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0, 0).toISOString();
+          const body = { title, dateFrom: start, dateTo: end, tagValueIds: Array.from(selected) };
+          const ev = await fetchJSON(`${API}/schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo });
+        });
+      }
+
+      main().catch(err => console.error(err));
+    </script>
+  </body>
+  </html>
+
+

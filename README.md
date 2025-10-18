@@ -56,4 +56,29 @@ SQL‑схема и индексы: `docs/db-schema.sql`.
 3. Создание/редактирование/удаление расписаний, тегов и значений тегов
 4. Доступ к сайту защищён Nginx Basic Auth
 
+## Запуск локально (dev)
+
+1. Создать и активировать venv, установить зависимости:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Инициализировать БД:
+
+```bash
+mkdir -p var
+sqlite3 var/data.sqlite < docs/db-schema.sql
+```
+
+3. Запустить API:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+4. (Опционально) Открыть `http://localhost:8000/docs` для Swagger UI.
+
 
