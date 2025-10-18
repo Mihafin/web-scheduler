@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Редактор тегов — Web Scheduler</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; }
+      header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+      main { max-width: 960px; margin: 0 auto; padding: 16px; }
+      .row { display: flex; align-items: center; gap: 8px; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:12px; margin:12px 0; }
+      .tag-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .value-list { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+      input[type="text"]{ padding: 6px; }
+      button { cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="row">
+        <a href="/" style="text-decoration:none;">← Назад</a>
+        <h3 style="margin:0;">Редактор тегов</h3>
+      </div>
+      <span class="muted">Создание, переименование, удаление тегов и значений</span>
+    </header>
+    <main>
+      <div class="row" style="margin-bottom:10px;">
+        <input id="newTagName" type="text" placeholder="Новый тег (например, зал)" style="flex:1;"/>
+        <button id="addTagBtn">Добавить тег</button>
+      </div>
+      <div id="tagsPanel"></div>
+    </main>
+
+    <script>
+      const API = '/api';
+
+      async function fetchJSON(url, opts){
+        const r = await fetch(url, opts);
+        if(!r.ok){ throw new Error(await r.text()); }
+        return r.json();
+      }
+
+      async function createTag(name){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
+      async function updateTag(id, name){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
+      async function deleteTag(id){ const r = await fetch(`${API}/tags/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
+      async function createTagValue(tagId, value){ return fetchJSON(`${API}/tags/${tagId}/values`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
+      async function updateTagValue(id, value){ return fetchJSON(`${API}/tags/values/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
+      async function deleteTagValue(id){ const r = await fetch(`${API}/tags/values/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
+
+      async function loadTagsWithValues(){
+        const tags = await fetchJSON(`${API}/tags`);
+        const result = [];
+        for(const t of tags){
+          const values = await fetchJSON(`${API}/tags/${t.id}/values`);
+          result.push({ tag: t, values });
+        }
+        return result;
+      }
+
+      function renderTagsPanel(container, groups){
+        container.innerHTML = '';
+        for(const g of groups){
+          const card = document.createElement('div');
+          card.className = 'card';
+          const head = document.createElement('div');
+          head.className = 'tag-header';
+          const nameSpan = document.createElement('strong'); nameSpan.textContent = g.tag.name;
+          const actions = document.createElement('div');
+          const editBtn = document.createElement('button'); editBtn.textContent = '✎ Переименовать';
+          const delBtn = document.createElement('button'); delBtn.textContent = '🗑 Удалить';
+          actions.append(editBtn, delBtn);
+          head.append(nameSpan, actions);
+          card.appendChild(head);
+
+          const list = document.createElement('div'); list.className = 'value-list';
+          for(const v of g.values){
+            const row = document.createElement('div'); row.className = 'row';
+            const span = document.createElement('span'); span.textContent = v.value;
+            const vb1 = document.createElement('button'); vb1.textContent = '✎';
+            const vb2 = document.createElement('button'); vb2.textContent = '🗑';
+            vb1.addEventListener('click', async ()=>{
+              const nv = prompt('Новое значение тега:', v.value);
+              if(nv && nv !== v.value){ await updateTagValue(v.id, nv); await refresh(); }
+            });
+            vb2.addEventListener('click', async ()=>{
+              if(confirm('Удалить значение тега?')){ await deleteTagValue(v.id); await refresh(); }
+            });
+            row.append(span, vb1, vb2);
+            list.appendChild(row);
+          }
+          card.appendChild(list);
+
+          const addRow = document.createElement('div'); addRow.className = 'row';
+          const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'Новое значение'; inp.style.flex = '1';
+          const add = document.createElement('button'); add.textContent = '+ Добавить значение';
+          add.addEventListener('click', async ()=>{
+            if(inp.value.trim()){ await createTagValue(g.tag.id, inp.value.trim()); inp.value=''; await refresh(); }
+          });
+          addRow.append(inp, add);
+          card.appendChild(addRow);
+
+          editBtn.addEventListener('click', async ()=>{
+            const nn = prompt('Новое имя тега:', g.tag.name);
+            if(nn && nn !== g.tag.name){ await updateTag(g.tag.id, nn); await refresh(); }
+          });
+          delBtn.addEventListener('click', async ()=>{
+            if(confirm('Удалить тег и все его значения?')){ await deleteTag(g.tag.id); await refresh(); }
+          });
+
+          container.appendChild(card);
+        }
+      }
+
+      async function refresh(){
+        const groups = await loadTagsWithValues();
+        renderTagsPanel(document.getElementById('tagsPanel'), groups);
+      }
+
+      async function main(){
+        document.getElementById('addTagBtn').addEventListener('click', async ()=>{
+          const name = document.getElementById('newTagName').value.trim();
+          if(!name) return;
+          await createTag(name);
+          document.getElementById('newTagName').value='';
+          await refresh();
+        });
+        await refresh();
+      }
+
+      main().catch(err => console.error(err));
+    </script>
+  </body>
+  </html>
+
+

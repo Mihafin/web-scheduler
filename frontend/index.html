@@ -35,19 +35,12 @@
   <body>
     <div id="app">
       <aside>
-        <h3>Фильтры</h3>
+        <div class="row" style="justify-content: space-between; align-items: baseline;">
+          <h3 style="margin:0;">Фильтры</h3>
+          <a href="/tags.html" class="muted">редактировать</a>
+        </div>
         <div id="filters"></div>
         <button id="createBtn">+ Событие</button>
-
-        <div class="section">
-          <h3>Теги</h3>
-          <div class="row" style="margin-bottom:8px;">
-            <input id="newTagName" type="text" placeholder="Новый тег (например, зал)" style="flex:1;"/>
-            <button id="addTagBtn">Добавить</button>
-          </div>
-          <div id="tagsPanel"></div>
-          <div class="muted">Можно добавлять/редактировать/удалять теги и их значения.</div>
-        </div>
       </aside>
       <main>
         <div id="calendar"></div>
@@ -130,78 +123,7 @@
         }
       }
 
-      // CRUD Теги и значения
-      async function createTag(name){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
-      async function updateTag(id, name){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
-      async function deleteTag(id){ const r = await fetch(`${API}/tags/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
-      async function createTagValue(tagId, value){ return fetchJSON(`${API}/tags/${tagId}/values`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
-      async function updateTagValue(id, value){ return fetchJSON(`${API}/tags/values/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
-      async function deleteTagValue(id){ const r = await fetch(`${API}/tags/values/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
-
-      function renderTagsPanel(container, groups){
-        container.innerHTML = '';
-        for(const g of groups){
-          const wrap = document.createElement('div');
-          wrap.className = 'tag-group';
-          const header = document.createElement('div');
-          header.className = 'tag-header';
-          const nameSpan = document.createElement('strong');
-          nameSpan.textContent = g.tag.name;
-          const actions = document.createElement('div');
-          const editBtn = document.createElement('button'); editBtn.textContent = '✎';
-          const delBtn = document.createElement('button'); delBtn.textContent = '🗑';
-          actions.append(editBtn, delBtn);
-          header.append(nameSpan, actions);
-          wrap.appendChild(header);
-
-          const list = document.createElement('div');
-          list.className = 'value-list';
-          for(const v of g.values){
-            const row = document.createElement('div');
-            row.className = 'row';
-            const span = document.createElement('span'); span.textContent = v.value;
-            const vb1 = document.createElement('button'); vb1.textContent = '✎';
-            const vb2 = document.createElement('button'); vb2.textContent = '🗑';
-            vb1.addEventListener('click', async ()=>{
-              const nv = prompt('Новое значение тега:', v.value);
-              if(nv && nv !== v.value){ await updateTagValue(v.id, nv); await refreshTaxonomy(); }
-            });
-            vb2.addEventListener('click', async ()=>{
-              if(confirm('Удалить значение тега?')){ await deleteTagValue(v.id); await refreshTaxonomy(); }
-            });
-            row.append(span, vb1, vb2);
-            list.appendChild(row);
-          }
-          wrap.appendChild(list);
-
-          const addRow = document.createElement('div');
-          addRow.className = 'row';
-          const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'Новое значение'; inp.style.flex = '1';
-          const add = document.createElement('button'); add.textContent = '+';
-          add.addEventListener('click', async ()=>{
-            if(inp.value.trim()){ await createTagValue(g.tag.id, inp.value.trim()); inp.value=''; await refreshTaxonomy(); }
-          });
-          addRow.append(inp, add);
-          wrap.appendChild(addRow);
-
-          editBtn.addEventListener('click', async ()=>{
-            const nn = prompt('Новое имя тега:', g.tag.name);
-            if(nn && nn !== g.tag.name){ await updateTag(g.tag.id, nn); await refreshTaxonomy(); }
-          });
-          delBtn.addEventListener('click', async ()=>{
-            if(confirm('Удалить тег и все его значения?')){ await deleteTag(g.tag.id); await refreshTaxonomy(); }
-          });
-
-          container.appendChild(wrap);
-        }
-      }
-
-      async function refreshTaxonomy(){
-        await loadTagsWithValues();
-        renderFilters(document.getElementById('filters'), TAG_GROUPS, SELECTED);
-        renderTagsPanel(document.getElementById('tagsPanel'), TAG_GROUPS);
-        if(window.calendar) window.calendar.refetchEvents();
-      }
+      // Управление тегами вынесено на /tags.html. На главной оставлены только фильтры.
 
       // МОДАЛ СОБЫТИЯ
       function isoToLocalInputValue(iso){
@@ -304,14 +226,6 @@
         SELECTED = new Set();
         await loadTagsWithValues();
         renderFilters(filtersEl, TAG_GROUPS, SELECTED);
-        renderTagsPanel(document.getElementById('tagsPanel'), TAG_GROUPS);
-        document.getElementById('addTagBtn').addEventListener('click', async ()=>{
-          const name = document.getElementById('newTagName').value.trim();
-          if(!name) return;
-          await createTag(name);
-          document.getElementById('newTagName').value='';
-          await refreshTaxonomy();
-        });
 
         const calendarEl = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(calendarEl, {
