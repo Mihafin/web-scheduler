@@ -7,11 +7,29 @@
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
-      #app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-      aside { border-right: 1px solid #e5e7eb; padding: 12px; }
+      #app { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+      aside { border-right: 1px solid #e5e7eb; padding: 12px; overflow: auto; }
       main { padding: 12px; }
       .tag-values { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
       .filters { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+      .section { margin-top: 16px; }
+      .row { display: flex; align-items: center; gap: 6px; }
+      .muted { color: #6b7280; font-size: 12px; }
+      button { cursor: pointer; }
+      input[type="text"], input[type="datetime-local"] { padding: 6px; }
+      /* Modal */
+      .hidden { display: none; }
+      .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+      .modal-backdrop.hidden { display: none !important; }
+      .modal { background: #fff; border-radius: 8px; padding: 16px; width: 520px; max-width: calc(100% - 24px); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+      .modal h3 { margin: 0 0 12px 0; }
+      .modal .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+      .tag-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 220px; overflow: auto; border: 1px solid #e5e7eb; padding: 8px; border-radius: 6px; }
+      .tag-group { border: 1px dashed #e5e7eb; padding: 6px; border-radius: 6px; }
+      .tag-group strong { font-size: 12px; color: #374151; }
+      .tag-list, .value-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+      .tag-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
     </style>
   </head>
   <body>
@@ -20,10 +38,48 @@
         <h3>Фильтры</h3>
         <div id="filters"></div>
         <button id="createBtn">+ Событие</button>
+
+        <div class="section">
+          <h3>Теги</h3>
+          <div class="row" style="margin-bottom:8px;">
+            <input id="newTagName" type="text" placeholder="Новый тег (например, зал)" style="flex:1;"/>
+            <button id="addTagBtn">Добавить</button>
+          </div>
+          <div id="tagsPanel"></div>
+          <div class="muted">Можно добавлять/редактировать/удалять теги и их значения.</div>
+        </div>
       </aside>
       <main>
         <div id="calendar"></div>
       </main>
+    </div>
+
+    <!-- Модальное окно события -->
+    <div id="eventModalWrap" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3 id="eventModalTitle">Событие</h3>
+        <div class="grid">
+          <div class="row"><input id="evTitle" type="text" placeholder="Название" style="width:100%"/></div>
+          <div></div>
+          <div>
+            <label class="muted">Начало</label>
+            <input id="evStart" type="datetime-local" style="width:100%"/>
+          </div>
+          <div>
+            <label class="muted">Окончание</label>
+            <input id="evEnd" type="datetime-local" style="width:100%"/>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label class="muted">Значения тегов</label>
+            <div id="evTagGroups" class="tag-groups"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="evDeleteBtn" style="margin-right:auto; color:#b91c1c;">Удалить</button>
+          <button id="evCancelBtn">Отмена</button>
+          <button id="evSaveBtn">Сохранить</button>
+        </div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
@@ -36,6 +92,10 @@
         return res.json();
       }
 
+      // Глобальные состояния
+      let TAG_GROUPS = [];
+      let SELECTED = new Set();
+
       async function loadTagsWithValues() {
         const tags = await fetchJSON(`${API}/tags`);
         const result = [];
@@ -43,6 +103,7 @@
           const values = await fetchJSON(`${API}/tags/${t.id}/values`);
           result.push({ tag: t, values });
         }
+        TAG_GROUPS = result;
         return result;
       }
 
@@ -69,11 +130,188 @@
         }
       }
 
+      // CRUD Теги и значения
+      async function createTag(name){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
+      async function updateTag(id, name){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
+      async function deleteTag(id){ const r = await fetch(`${API}/tags/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
+      async function createTagValue(tagId, value){ return fetchJSON(`${API}/tags/${tagId}/values`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
+      async function updateTagValue(id, value){ return fetchJSON(`${API}/tags/values/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
+      async function deleteTagValue(id){ const r = await fetch(`${API}/tags/values/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
+
+      function renderTagsPanel(container, groups){
+        container.innerHTML = '';
+        for(const g of groups){
+          const wrap = document.createElement('div');
+          wrap.className = 'tag-group';
+          const header = document.createElement('div');
+          header.className = 'tag-header';
+          const nameSpan = document.createElement('strong');
+          nameSpan.textContent = g.tag.name;
+          const actions = document.createElement('div');
+          const editBtn = document.createElement('button'); editBtn.textContent = '✎';
+          const delBtn = document.createElement('button'); delBtn.textContent = '🗑';
+          actions.append(editBtn, delBtn);
+          header.append(nameSpan, actions);
+          wrap.appendChild(header);
+
+          const list = document.createElement('div');
+          list.className = 'value-list';
+          for(const v of g.values){
+            const row = document.createElement('div');
+            row.className = 'row';
+            const span = document.createElement('span'); span.textContent = v.value;
+            const vb1 = document.createElement('button'); vb1.textContent = '✎';
+            const vb2 = document.createElement('button'); vb2.textContent = '🗑';
+            vb1.addEventListener('click', async ()=>{
+              const nv = prompt('Новое значение тега:', v.value);
+              if(nv && nv !== v.value){ await updateTagValue(v.id, nv); await refreshTaxonomy(); }
+            });
+            vb2.addEventListener('click', async ()=>{
+              if(confirm('Удалить значение тега?')){ await deleteTagValue(v.id); await refreshTaxonomy(); }
+            });
+            row.append(span, vb1, vb2);
+            list.appendChild(row);
+          }
+          wrap.appendChild(list);
+
+          const addRow = document.createElement('div');
+          addRow.className = 'row';
+          const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'Новое значение'; inp.style.flex = '1';
+          const add = document.createElement('button'); add.textContent = '+';
+          add.addEventListener('click', async ()=>{
+            if(inp.value.trim()){ await createTagValue(g.tag.id, inp.value.trim()); inp.value=''; await refreshTaxonomy(); }
+          });
+          addRow.append(inp, add);
+          wrap.appendChild(addRow);
+
+          editBtn.addEventListener('click', async ()=>{
+            const nn = prompt('Новое имя тега:', g.tag.name);
+            if(nn && nn !== g.tag.name){ await updateTag(g.tag.id, nn); await refreshTaxonomy(); }
+          });
+          delBtn.addEventListener('click', async ()=>{
+            if(confirm('Удалить тег и все его значения?')){ await deleteTag(g.tag.id); await refreshTaxonomy(); }
+          });
+
+          container.appendChild(wrap);
+        }
+      }
+
+      async function refreshTaxonomy(){
+        await loadTagsWithValues();
+        renderFilters(document.getElementById('filters'), TAG_GROUPS, SELECTED);
+        renderTagsPanel(document.getElementById('tagsPanel'), TAG_GROUPS);
+        if(window.calendar) window.calendar.refetchEvents();
+      }
+
+      // МОДАЛ СОБЫТИЯ
+      function isoToLocalInputValue(iso){
+        const d = new Date(iso);
+        const pad = (n)=> String(n).padStart(2,'0');
+        const yyyy = d.getFullYear();
+        const mm = pad(d.getMonth()+1);
+        const dd = pad(d.getDate());
+        const hh = pad(d.getHours());
+        const mi = pad(d.getMinutes());
+        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+      }
+      function localInputToIso(val){
+        const d = new Date(val);
+        return d.toISOString();
+      }
+
+      function renderTagCheckboxes(container, selectedIds){
+        container.innerHTML = '';
+        for(const g of TAG_GROUPS){
+          const box = document.createElement('div');
+          box.className = 'tag-group';
+          const title = document.createElement('strong'); title.textContent = g.tag.name; box.appendChild(title);
+          for(const v of g.values){
+            const lab = document.createElement('label');
+            const input = document.createElement('input'); input.type='checkbox'; input.value=String(v.id); input.checked = selectedIds.has(v.id);
+            lab.appendChild(input); lab.appendChild(document.createTextNode(' '+v.value));
+            box.appendChild(lab);
+            box.appendChild(document.createElement('br'));
+          }
+          container.appendChild(box);
+        }
+      }
+
+      function openEventModal(mode, data){
+        const wrap = document.getElementById('eventModalWrap');
+        const titleEl = document.getElementById('evTitle');
+        const startEl = document.getElementById('evStart');
+        const endEl = document.getElementById('evEnd');
+        const groupsEl = document.getElementById('evTagGroups');
+        const delBtn = document.getElementById('evDeleteBtn');
+        const saveBtn = document.getElementById('evSaveBtn');
+        const cancelBtn = document.getElementById('evCancelBtn');
+        const modalTitle = document.getElementById('eventModalTitle');
+
+        const selectedIds = new Set(data.tagValueIds || []);
+        renderTagCheckboxes(groupsEl, selectedIds);
+
+        titleEl.value = data.title || '';
+        startEl.value = isoToLocalInputValue(data.startIso);
+        endEl.value = isoToLocalInputValue(data.endIso);
+        modalTitle.textContent = mode === 'create' ? 'Создание события' : 'Редактирование события';
+        delBtn.style.display = mode === 'edit' ? 'inline-block' : 'none';
+
+        const collectSelected = ()=> Array.from(groupsEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>Number(i.value));
+
+        const onSave = async ()=>{
+          const payload = {
+            title: titleEl.value.trim(),
+            dateFrom: localInputToIso(startEl.value),
+            dateTo: localInputToIso(endEl.value),
+            tagValueIds: collectSelected()
+          };
+          if(!payload.title){ alert('Введите название'); return; }
+          if(mode==='create'){
+            const ev = await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            window.calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo, extendedProps:{ tagValueIds: ev.tagValueIds } });
+          } else {
+            const ev = await fetchJSON(`${API}/schedules/${data.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const calEv = window.calendar.getEventById(String(data.id));
+            if(calEv){ calEv.setProp('title', ev.title); calEv.setStart(ev.dateFrom); calEv.setEnd(ev.dateTo); calEv.setExtendedProp('tagValueIds', ev.tagValueIds); }
+          }
+          closeEventModal();
+        };
+
+        const onDelete = async ()=>{
+          if(confirm('Удалить событие?')){
+            await fetch(`${API}/schedules/${data.id}`, { method:'DELETE' });
+            const calEv = window.calendar.getEventById(String(data.id));
+            if(calEv) calEv.remove();
+            closeEventModal();
+          }
+        };
+
+        const onCancel = ()=> closeEventModal();
+
+        saveBtn.onclick = onSave;
+        delBtn.onclick = onDelete;
+        cancelBtn.onclick = onCancel;
+
+        wrap.classList.remove('hidden');
+      }
+
+      function closeEventModal(){
+        document.getElementById('eventModalWrap').classList.add('hidden');
+      }
+
       async function main() {
         const filtersEl = document.getElementById('filters');
-        const selected = new Set();
-        const groups = await loadTagsWithValues();
-        renderFilters(filtersEl, groups, selected);
+        SELECTED = new Set();
+        await loadTagsWithValues();
+        renderFilters(filtersEl, TAG_GROUPS, SELECTED);
+        renderTagsPanel(document.getElementById('tagsPanel'), TAG_GROUPS);
+        document.getElementById('addTagBtn').addEventListener('click', async ()=>{
+          const name = document.getElementById('newTagName').value.trim();
+          if(!name) return;
+          await createTag(name);
+          document.getElementById('newTagName').value='';
+          await refreshTaxonomy();
+        });
 
         const calendarEl = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -88,19 +326,15 @@
                 const params = new URLSearchParams();
                 params.set('from', info.startStr);
                 params.set('to', info.endStr);
-                if (selected.size) params.set('tag_value_ids', Array.from(selected).join(','));
+                if (SELECTED.size) params.set('tag_value_ids', Array.from(SELECTED).join(','));
                 const data = await fetchJSON(`${API}/schedules?${params}`);
-                const events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo }));
+                const events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds } }));
                 success(events);
               } catch (err) { failure(err); }
             }
           }],
           select: async (arg) => {
-            const title = prompt('Название события:');
-            if (!title) return;
-            const body = { title, dateFrom: arg.startStr, dateTo: arg.endStr, tagValueIds: Array.from(selected) };
-            const ev = await fetchJSON(`${API}/schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo });
+            openEventModal('create', { startIso: arg.startStr, endIso: arg.endStr, tagValueIds: Array.from(SELECTED) });
           },
           eventDrop: async (info) => {
             const ev = info.event;
@@ -112,24 +346,17 @@
           },
           eventClick: async (info) => {
             const ev = info.event;
-            const title = prompt('Новое название:', ev.title);
-            if (title == null) return;
-            const res = await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
-            ev.setProp('title', res.title);
+            openEventModal('edit', { id: Number(ev.id), title: ev.title, startIso: ev.start.toISOString(), endIso: (ev.end?.toISOString() || ev.start.toISOString()), tagValueIds: ev.extendedProps?.tagValueIds || [] });
           }
         });
         calendar.render();
         window.calendar = calendar;
 
         document.getElementById('createBtn').addEventListener('click', async ()=>{
-          const title = prompt('Название события:');
-          if (!title) return;
           const now = new Date();
           const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0).toISOString();
           const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0, 0).toISOString();
-          const body = { title, dateFrom: start, dateTo: end, tagValueIds: Array.from(selected) };
-          const ev = await fetchJSON(`${API}/schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo });
+          openEventModal('create', { startIso: start, endIso: end, tagValueIds: Array.from(SELECTED) });
         });
       }
 
