@@ -27,15 +27,15 @@
 ### Теги
 
 - GET `/api/tags`
-  - Ответ: `[{ id, name }]`
+  - Ответ: `[{ id, name, required, unique_resource }]`
 
 - POST `/api/tags`
-  - Тело: `{ name: string }`
-  - Ответ: `{ id, name }`
+  - Тело: `{ name: string, required?: boolean, unique_resource?: boolean }`
+  - Ответ: `{ id, name, required, unique_resource }`
 
 - PUT `/api/tags/{id}`
-  - Тело: `{ name: string }`
-  - Ответ: `{ id, name }`
+  - Тело: `{ name?: string, required?: boolean, unique_resource?: boolean }`
+  - Ответ: `{ id, name, required, unique_resource }`
 
 - DELETE `/api/tags/{id}` → 204
 

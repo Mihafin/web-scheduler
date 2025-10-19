@@ -207,16 +207,21 @@
             tagValueIds: collectSelected()
           };
           if(!payload.title){ alert('Введите название'); return; }
-          if(mode==='create'){
-            await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            // Перерисовываем события из источника, чтобы применились фильтры и цвета
-            window.calendar.refetchEvents();
-          } else {
-            await fetchJSON(`${API}/schedules/${data.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            // На обновление тоже делаем refetch для консистентности подсветки
-            window.calendar.refetchEvents();
+          try{
+            if(mode==='create'){
+              await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+              window.calendar.refetchEvents();
+            } else {
+              await fetchJSON(`${API}/schedules/${data.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+              window.calendar.refetchEvents();
+            }
+            closeEventModal();
+          } catch (e) {
+            // Сервер возвращает detail с текстом ошибки; попытаемся извлечь его
+            let msg = 'Не удалось сохранить событие';
+            try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
+            alert(msg);
           }
-          closeEventModal();
         };
 
         const onDelete = async ()=>{

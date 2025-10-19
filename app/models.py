@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Integer, String, ForeignKey, UniqueConstraint
+from sqlalchemy import Integer, String, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -10,6 +10,8 @@ class Tag(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unique_resource: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     values: Mapped[list[TagValue]] = relationship("TagValue", back_populates="tag", cascade="all, delete-orphan")
 

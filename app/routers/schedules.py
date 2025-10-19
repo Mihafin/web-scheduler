@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models, schemas
@@ -58,11 +58,54 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
     if data.dateTo < data.dateFrom:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
     sched = models.Schedule(title=data.title, date_from=data.dateFrom, date_to=data.dateTo)
+    selected_tag_values: list[models.TagValue] = []
     if data.tagValueIds:
-        tag_values = db.query(models.TagValue).filter(models.TagValue.id.in_(data.tagValueIds)).all()
-        if len(tag_values) != len(set(data.tagValueIds)):
+        selected_tag_values = db.query(models.TagValue).filter(models.TagValue.id.in_(data.tagValueIds)).all()
+        if len(selected_tag_values) != len(set(data.tagValueIds)):
             raise HTTPException(status_code=400, detail="Some tagValueIds not found")
-        sched.tag_values = tag_values
+
+    # 1) Проверка: указаны все required теги
+    required_tags = db.query(models.Tag).filter(models.Tag.required == True).all()
+    if required_tags:
+        tag_id_to_selected_value_ids: dict[int, list[int]] = {}
+        for tv in selected_tag_values:
+            tag_id_to_selected_value_ids.setdefault(tv.tag_id, []).append(tv.id)
+        missing_tag_names = [t.name for t in required_tags if t.id not in tag_id_to_selected_value_ids]
+        if missing_tag_names:
+            raise HTTPException(status_code=400, detail=f"Missing required tags: {', '.join(missing_tag_names)}")
+
+    # 2) Проверка: уникальные ресурсы не пересекаются по времени
+    unique_tags = db.query(models.Tag).filter(models.Tag.unique_resource == True).all()
+    if unique_tags and selected_tag_values:
+        # сгруппировать выбранные значения по тегу
+        tag_id_to_values: dict[int, list[models.TagValue]] = {}
+        for tv in selected_tag_values:
+            tag_id_to_values.setdefault(tv.tag_id, []).append(tv)
+        unique_tag_ids = {t.id for t in unique_tags}
+        for tag_id in unique_tag_ids:
+            t_values = tag_id_to_values.get(tag_id, [])
+            if not t_values:
+                continue
+            # для каждого значения проверяем пересечения с уже существующими расписаниями
+            value_ids = [tv.id for tv in t_values]
+            # найти существующие события, у которых есть одно из value_ids и которые пересекаются по времени
+            existing = (
+                db.query(models.Schedule)
+                .join(models.Schedule.tag_values)
+                .filter(
+                    models.TagValue.id.in_(value_ids),
+                    ~(models.Schedule.date_to < data.dateFrom),
+                    ~(models.Schedule.date_from > data.dateTo),
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Time intersects with schedule id={existing.id} for unique resource tag",
+                )
+
+    sched.tag_values = selected_tag_values
     db.add(sched)
     db.commit()
     db.refresh(sched)

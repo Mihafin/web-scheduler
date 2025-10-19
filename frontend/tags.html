@@ -43,8 +43,8 @@
         return r.json();
       }
 
-      async function createTag(name){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
-      async function updateTag(id, name){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }); }
+      async function createTag(name, required, unique_resource){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, required, unique_resource }) }); }
+      async function updateTag(id, payload){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); }
       async function deleteTag(id){ const r = await fetch(`${API}/tags/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
       async function createTagValue(tagId, value){ return fetchJSON(`${API}/tags/${tagId}/values`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
       async function updateTagValue(id, value){ return fetchJSON(`${API}/tags/values/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
@@ -69,7 +69,21 @@
           head.className = 'tag-header';
           const left = document.createElement('div'); left.className = 'row';
           const nameSpan = document.createElement('strong'); nameSpan.textContent = g.tag.name;
-          left.append(nameSpan);
+          const reqWrap = document.createElement('label'); reqWrap.className='muted';
+          const reqInput = document.createElement('input'); reqInput.type='checkbox'; reqInput.checked = !!g.tag.required; reqInput.style.marginLeft = '8px';
+          reqWrap.appendChild(reqInput); reqWrap.appendChild(document.createTextNode(' обязательный'));
+          reqInput.addEventListener('change', async ()=>{
+            await updateTag(g.tag.id, { name: g.tag.name, required: reqInput.checked, unique_resource: !!g.tag.unique_resource });
+            await refresh();
+          });
+          const uniqWrap = document.createElement('label'); uniqWrap.className='muted';
+          const uniqInput = document.createElement('input'); uniqInput.type='checkbox'; uniqInput.checked = !!g.tag.unique_resource; uniqInput.style.marginLeft = '8px';
+          uniqWrap.appendChild(uniqInput); uniqWrap.appendChild(document.createTextNode(' уникальный ресурс'));
+          uniqInput.addEventListener('change', async ()=>{
+            await updateTag(g.tag.id, { name: g.tag.name, required: !!g.tag.required, unique_resource: uniqInput.checked });
+            await refresh();
+          });
+          left.append(nameSpan, reqWrap, uniqWrap);
           const actions = document.createElement('div');
           const editBtn = document.createElement('button'); editBtn.textContent = '✎ Переименовать';
           const delBtn = document.createElement('button'); delBtn.textContent = '🗑 Удалить';
@@ -112,7 +126,7 @@
           editBtn.addEventListener('click', async ()=>{
             const nn = prompt('Новое имя тега:', g.tag.name);
             if(nn === null) return;
-            await updateTag(g.tag.id, nn || g.tag.name);
+            await updateTag(g.tag.id, { name: nn || g.tag.name, required: !!g.tag.required, unique_resource: !!g.tag.unique_resource });
             await refresh();
           });
           delBtn.addEventListener('click', async ()=>{
@@ -129,11 +143,27 @@
       }
 
       async function main(){
+        // Добавим флажки рядом с полем ввода для нового тега, если их ещё нет
+        const addRow = document.querySelector('main .row');
+        if(addRow && !document.getElementById('newTagRequired')){
+          const reqLabel = document.createElement('label'); reqLabel.className='muted';
+          const req = document.createElement('input'); req.type='checkbox'; req.id='newTagRequired'; req.style.marginLeft='8px';
+          reqLabel.appendChild(req); reqLabel.appendChild(document.createTextNode(' обязательный'));
+          const uniqLabel = document.createElement('label'); uniqLabel.className='muted';
+          const uniq = document.createElement('input'); uniq.type='checkbox'; uniq.id='newTagUnique'; uniq.style.marginLeft='8px';
+          uniqLabel.appendChild(uniq); uniqLabel.appendChild(document.createTextNode(' уникальный ресурс'));
+          addRow.insertBefore(reqLabel, document.getElementById('addTagBtn'));
+          addRow.insertBefore(uniqLabel, document.getElementById('addTagBtn'));
+        }
         document.getElementById('addTagBtn').addEventListener('click', async ()=>{
           const name = document.getElementById('newTagName').value.trim();
           if(!name) return;
-          await createTag(name);
+          const required = !!document.getElementById('newTagRequired')?.checked;
+          const unique_resource = !!document.getElementById('newTagUnique')?.checked;
+          await createTag(name, required, unique_resource);
           document.getElementById('newTagName').value='';
+          if(document.getElementById('newTagRequired')) document.getElementById('newTagRequired').checked = false;
+          if(document.getElementById('newTagUnique')) document.getElementById('newTagUnique').checked = false;
           await refresh();
         });
         await refresh();

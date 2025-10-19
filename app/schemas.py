@@ -6,6 +6,8 @@ from typing import List, Optional
 
 class TagBase(BaseModel):
     name: str = Field(min_length=1)
+    required: bool = False
+    unique_resource: bool = False
 
 
 class TagCreate(TagBase):

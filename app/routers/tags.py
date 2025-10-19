@@ -17,6 +17,17 @@ def _create_tables():
             conn.execute(text("ALTER TABLE tag_values ADD COLUMN color TEXT NULL"))
     except Exception:
         pass
+    # Мягкая миграция: добавить столбцы required и unique_resource к tags, если их нет
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tags ADD COLUMN required BOOLEAN NOT NULL DEFAULT 0"))
+    except Exception:
+        pass
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tags ADD COLUMN unique_resource BOOLEAN NOT NULL DEFAULT 0"))
+    except Exception:
+        pass
 
 
 @router.get("", response_model=list[schemas.TagOut])
@@ -29,7 +40,7 @@ def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db)):
     exists = db.query(models.Tag).filter(models.Tag.name == data.name).first()
     if exists:
         raise HTTPException(status_code=400, detail="Tag with this name already exists")
-    tag = models.Tag(name=data.name)
+    tag = models.Tag(name=data.name, required=data.required, unique_resource=data.unique_resource)
     db.add(tag)
     db.commit()
     db.refresh(tag)
@@ -46,6 +57,11 @@ def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_d
         if dup:
             raise HTTPException(status_code=400, detail="Tag with this name already exists")
         tag.name = data.name
+    # Обновление флагов, если переданы
+    if hasattr(data, "required") and data.required is not None:
+        tag.required = data.required
+    if hasattr(data, "unique_resource") and data.unique_resource is not None:
+        tag.unique_resource = data.unique_resource
     db.commit()
     db.refresh(tag)
     return tag
