@@ -9,7 +9,9 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
 def _intersects(a_from: str, a_to: str, b_from: str, b_to: str) -> bool:
-    return not (a_to < b_from or a_from > b_to)
+    # Пересечение по полуоткрытым интервалам: [from, to)
+    # Не пересекаются, если один заканчивается в момент начала другого
+    return not (a_to <= b_from or a_from >= b_to)
 
 
 @router.get("", response_model=list[schemas.ScheduleOut])
@@ -21,8 +23,8 @@ def list_schedules(
 ):
     q = db.query(models.Schedule)
     if from_ and to:
-        # Храним как строки ISO; фильтруем по пересечению диапазонов
-        q = q.filter(~(models.Schedule.date_to < from_), ~(models.Schedule.date_from > to))
+        # Храним как строки ISO; фильтруем по пересечению диапазонов (полуоткрытые интервалы)
+        q = q.filter(~(models.Schedule.date_to <= from_), ~(models.Schedule.date_from >= to))
     if tag_value_ids:
         ids = [int(x) for x in tag_value_ids.split(",") if x]
         if ids:
@@ -94,8 +96,8 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
                 .join(models.Schedule.tag_values)
                 .filter(
                     models.TagValue.id.in_(value_ids),
-                    ~(models.Schedule.date_to < data.dateFrom),
-                    ~(models.Schedule.date_from > data.dateTo),
+                    ~(models.Schedule.date_to <= data.dateFrom),
+                    ~(models.Schedule.date_from >= data.dateTo),
                 )
                 .first()
             )
@@ -157,8 +159,8 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
                 .filter(
                     models.Schedule.id != sched.id,
                     models.TagValue.id.in_(uniq_value_ids),
-                    ~(models.Schedule.date_to < new_from),
-                    ~(models.Schedule.date_from > new_to),
+                    ~(models.Schedule.date_to <= new_from),
+                    ~(models.Schedule.date_from >= new_to),
                 )
                 .first()
             )
