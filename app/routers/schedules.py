@@ -123,19 +123,53 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched = db.get(models.Schedule, id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
-    if data.title is not None:
-        sched.title = data.title
-    if data.dateFrom is not None:
-        sched.date_from = data.dateFrom
-    if data.dateTo is not None:
-        sched.date_to = data.dateTo
-    if data.dateFrom is not None and data.dateTo is not None and data.dateTo < data.dateFrom:
+    # Сформируем итоговые значения после обновления (не применяя к БД до валидаций)
+    new_title = data.title if data.title is not None else sched.title
+    new_from = data.dateFrom if data.dateFrom is not None else sched.date_from
+    new_to = data.dateTo if data.dateTo is not None else sched.date_to
+    if new_to < new_from:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
     if data.tagValueIds is not None:
-        tag_values = db.query(models.TagValue).filter(models.TagValue.id.in_(data.tagValueIds)).all()
-        if len(tag_values) != len(set(data.tagValueIds)):
+        new_tag_values = db.query(models.TagValue).filter(models.TagValue.id.in_(data.tagValueIds)).all()
+        if len(new_tag_values) != len(set(data.tagValueIds)):
             raise HTTPException(status_code=400, detail="Some tagValueIds not found")
-        sched.tag_values = tag_values
+    else:
+        new_tag_values = list(sched.tag_values)
+
+    # Проверка required тегов
+    required_tags = db.query(models.Tag).filter(models.Tag.required == True).all()
+    if required_tags:
+        tag_ids_present = {tv.tag_id for tv in new_tag_values}
+        missing = [t.name for t in required_tags if t.id not in tag_ids_present]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Missing required tags: {', '.join(missing)}")
+
+    # Проверка уникальных ресурсов: пересечения по времени с другими событиями
+    unique_tags = db.query(models.Tag).filter(models.Tag.unique_resource == True).all()
+    if unique_tags and new_tag_values:
+        unique_tag_ids = {t.id for t in unique_tags}
+        # значения по уникальным тегам
+        uniq_value_ids = [tv.id for tv in new_tag_values if tv.tag_id in unique_tag_ids]
+        if uniq_value_ids:
+            existing = (
+                db.query(models.Schedule)
+                .join(models.Schedule.tag_values)
+                .filter(
+                    models.Schedule.id != sched.id,
+                    models.TagValue.id.in_(uniq_value_ids),
+                    ~(models.Schedule.date_to < new_from),
+                    ~(models.Schedule.date_from > new_to),
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Time intersects with schedule id={existing.id} for unique resource tag")
+
+    # Применяем обновления
+    sched.title = new_title
+    sched.date_from = new_from
+    sched.date_to = new_to
+    sched.tag_values = new_tag_values
     db.commit()
     db.refresh(sched)
     return schemas.ScheduleOut(

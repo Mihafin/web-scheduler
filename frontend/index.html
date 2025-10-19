@@ -131,7 +131,7 @@
             const id = `tv-${v.id}`;
             const checked = state.has(v.id) ? 'checked' : '';
             const item = document.createElement('label');
-            item.innerHTML = `<input type="checkbox" id="${id}" ${checked}/> ${v.value}`;
+            item.innerHTML = `<input type="checkbox" id="${id}" ${checked}/> <span class="color-dot" style="background:${v.color || '#9ca3af'}"></span> ${v.value}`;
             item.querySelector('input').addEventListener('change', (e)=>{
               if (e.target.checked) state.add(v.id); else state.delete(v.id);
               window.calendar.refetchEvents();
