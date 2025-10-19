@@ -1,0 +1,48 @@
+# OS
+.DS_Store
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files
+.env
+.env.*
+
+# Test and coverage
+.pytest_cache/
+.coverage*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+logs/
+*.log
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+var/*.db
+var/*.sqlite
+
+# Build output
+build/
+dist/
+pip-wheel-metadata/
+
+# Node (if used)
+node_modules/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*~

@@ -18,6 +18,22 @@ sudo snap install --classic certbot
 sudo ln -s /snap/bin/certbot /usr/bin/certbot
 ```
 
+### Быстрый старт (скриптом)
+
+```bash
+# На сервере под пользователем с sudo
+sudo mkdir -p /opt/web_scheduler && sudo chown -R $USER:$USER /opt/web_scheduler
+cd /opt/web_scheduler
+git clone <url-репозитория> .
+
+# Запуск автоматизированной установки:
+sudo -E SERVER_NAME=example.com BASIC_AUTH_USER=admin BASIC_AUTH_PASS='strongpass' bash scripts/setup_server.sh
+```
+
+Скрипт сам установит пакеты, создаст venv, инициализирует SQLite, поднимет systemd‑сервис и настроит Nginx (включая Basic Auth, если заданы переменные).
+
+### Ручная установка
+
 ### Развёртывание кода
 
 ```bash
@@ -79,17 +95,13 @@ sudo systemctl enable --now web-scheduler
 sudo systemctl status web-scheduler
 ```
 
-### Сборка фронтенда
+### Фронтенд (без сборки)
 
-Если используется React + Vite:
+В текущей версии фронтенд — статичные HTML/JS файлы в `frontend/`, сборка не требуется. Достаточно скопировать их в директорию, которую обслуживает Nginx:
 
 ```bash
-sudo apt install -y nodejs npm
-cd /opt/web_scheduler/frontend
-npm ci || npm install
-npm run build
 sudo mkdir -p /var/www/web_scheduler
-sudo cp -r dist/* /var/www/web_scheduler/
+sudo cp -r /opt/web_scheduler/frontend/* /var/www/web_scheduler/
 ```
 
 ### Nginx + Basic Auth
@@ -124,8 +136,8 @@ sudo certbot --nginx -d example.com -d www.example.com
 ```bash
 cd /opt/web_scheduler
 git pull
-# Пересоберите фронтенд, при необходимости перезапустите API:
-sudo systemctl restart web-scheduler
+# Обновить зависимости, статику и перезапустить сервис одной командой:
+sudo bash scripts/update_app.sh
 ```
 
 
