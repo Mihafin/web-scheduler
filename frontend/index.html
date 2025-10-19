@@ -104,22 +104,29 @@
 
       function renderFilters(cont, groups, state) {
         cont.innerHTML = '';
-        // Радио для выбора основного тега для подсветки (по умолчанию первый)
-        const radioWrap = document.createElement('div'); radioWrap.className = 'tag-values';
-        const radioTitle = document.createElement('div'); radioTitle.className='muted'; radioTitle.textContent = 'Основной тег для подсветки:';
-        radioWrap.appendChild(radioTitle);
-        const radioName = 'highlight-tag';
+        // Выпадающий список для выбора основного тега для подсветки
+        const selectWrap = document.createElement('div'); selectWrap.className = 'tag-values';
+        const selectTitle = document.createElement('div'); selectTitle.className='muted'; selectTitle.textContent = 'Основной тег для подсветки:';
+        selectWrap.appendChild(selectTitle);
+        const select = document.createElement('select');
+        for (const g of groups) {
+          const opt = document.createElement('option');
+          opt.value = String(g.tag.id);
+          opt.textContent = g.tag.name;
+          select.appendChild(opt);
+        }
         if (!window.highlightTagId && groups.length) {
           window.highlightTagId = groups[0].tag.id;
         }
-        for(const g of groups){
-          const label = document.createElement('label'); label.className='tag-line';
-          const checked = String(window.highlightTagId) === String(g.tag.id) ? 'checked' : '';
-          label.innerHTML = `<input type="radio" name="${radioName}" value="${g.tag.id}" ${checked}/> ${g.tag.name}`;
-          label.querySelector('input').addEventListener('change', ()=>{ window.highlightTagId = g.tag.id; if(window.calendar) window.calendar.refetchEvents(); });
-          radioWrap.appendChild(label);
+        if (window.highlightTagId) {
+          select.value = String(window.highlightTagId);
         }
-        cont.appendChild(radioWrap);
+        select.addEventListener('change', () => {
+          window.highlightTagId = Number(select.value);
+          if (window.calendar) window.calendar.refetchEvents();
+        });
+        selectWrap.appendChild(select);
+        cont.appendChild(selectWrap);
         // Чекбоксы для фильтрации по значениям
         for (const g of groups) {
           const h = document.createElement('div');
