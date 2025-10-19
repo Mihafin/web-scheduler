@@ -11,6 +11,8 @@
       aside { border-right: 1px solid #e5e7eb; padding: 12px; overflow: auto; }
       main { padding: 12px; }
       .tag-values { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+      .tag-line { display:flex; align-items:center; gap:6px; }
+      .color-dot { display:inline-block; width: 10px; height: 10px; border-radius: 50%; border:1px solid #d1d5db; }
       .filters { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
       .section { margin-top: 16px; }
       .row { display: flex; align-items: center; gap: 6px; }
@@ -102,6 +104,23 @@
 
       function renderFilters(cont, groups, state) {
         cont.innerHTML = '';
+        // Радио для выбора основного тега для подсветки (по умолчанию первый)
+        const radioWrap = document.createElement('div'); radioWrap.className = 'tag-values';
+        const radioTitle = document.createElement('div'); radioTitle.className='muted'; radioTitle.textContent = 'Основной тег для подсветки:';
+        radioWrap.appendChild(radioTitle);
+        const radioName = 'highlight-tag';
+        if (!window.highlightTagId && groups.length) {
+          window.highlightTagId = groups[0].tag.id;
+        }
+        for(const g of groups){
+          const label = document.createElement('label'); label.className='tag-line';
+          const checked = String(window.highlightTagId) === String(g.tag.id) ? 'checked' : '';
+          label.innerHTML = `<input type="radio" name="${radioName}" value="${g.tag.id}" ${checked}/> ${g.tag.name}`;
+          label.querySelector('input').addEventListener('change', ()=>{ window.highlightTagId = g.tag.id; if(window.calendar) window.calendar.refetchEvents(); });
+          radioWrap.appendChild(label);
+        }
+        cont.appendChild(radioWrap);
+        // Чекбоксы для фильтрации по значениям
         for (const g of groups) {
           const h = document.createElement('div');
           h.innerHTML = `<strong>${g.tag.name}</strong>`;
@@ -225,6 +244,9 @@
         const filtersEl = document.getElementById('filters');
         SELECTED = new Set();
         await loadTagsWithValues();
+        if (!window.highlightTagId && TAG_GROUPS.length) {
+          window.highlightTagId = TAG_GROUPS[0].tag.id;
+        }
         renderFilters(filtersEl, TAG_GROUPS, SELECTED);
 
         const calendarEl = document.getElementById('calendar');
@@ -243,6 +265,23 @@
                 if (SELECTED.size) params.set('tag_value_ids', Array.from(SELECTED).join(','));
                 const data = await fetchJSON(`${API}/schedules?${params}`);
                 const events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds } }));
+                // Раскраска по выбранному тегу: цвет берём у значения; иначе серый
+                const hlTagId = window.highlightTagId || null;
+                if(hlTagId){
+                  const tvColorMap = new Map();
+                  for(const g of TAG_GROUPS){
+                    if(g.tag.id === hlTagId){
+                      for(const v of g.values){ tvColorMap.set(v.id, v.color || '#9ca3af'); }
+                    }
+                  }
+                  for(const ev of events){
+                    const tvIds = ev.extendedProps.tagValueIds || [];
+                    let chosenColor = null;
+                    for(const id of tvIds){ if(tvColorMap.has(id)){ chosenColor = tvColorMap.get(id); break; } }
+                    const color = chosenColor || '#9ca3af';
+                    ev.backgroundColor = color; ev.borderColor = color; ev.textColor = '#fff';
+                  }
+                }
                 success(events);
               } catch (err) { failure(err); }
             }

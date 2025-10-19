@@ -13,6 +13,7 @@
       .card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:12px; margin:12px 0; }
       .tag-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
       .value-list { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+      .color-dot { display:inline-block; width: 12px; height: 12px; border-radius: 50%; border:1px solid #d1d5db; margin-right:6px; vertical-align: middle; }
       input[type="text"]{ padding: 6px; }
       button { cursor: pointer; }
     </style>
@@ -66,28 +67,35 @@
           card.className = 'card';
           const head = document.createElement('div');
           head.className = 'tag-header';
+          const left = document.createElement('div'); left.className = 'row';
           const nameSpan = document.createElement('strong'); nameSpan.textContent = g.tag.name;
+          left.append(nameSpan);
           const actions = document.createElement('div');
           const editBtn = document.createElement('button'); editBtn.textContent = '✎ Переименовать';
           const delBtn = document.createElement('button'); delBtn.textContent = '🗑 Удалить';
           actions.append(editBtn, delBtn);
-          head.append(nameSpan, actions);
+          head.append(left, actions);
           card.appendChild(head);
 
           const list = document.createElement('div'); list.className = 'value-list';
           for(const v of g.values){
             const row = document.createElement('div'); row.className = 'row';
+            const color = document.createElement('input'); color.type='color'; color.value = v.color || '#9ca3af';
             const span = document.createElement('span'); span.textContent = v.value;
             const vb1 = document.createElement('button'); vb1.textContent = '✎';
             const vb2 = document.createElement('button'); vb2.textContent = '🗑';
+            color.addEventListener('change', async ()=>{
+              await fetchJSON(`${API}/tags/values/${v.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ value: v.value, color: color.value }) });
+              await refresh();
+            });
             vb1.addEventListener('click', async ()=>{
               const nv = prompt('Новое значение тега:', v.value);
-              if(nv && nv !== v.value){ await updateTagValue(v.id, nv); await refresh(); }
+              if(nv && nv !== v.value){ await fetchJSON(`${API}/tags/values/${v.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ value: nv, color: color.value }) }); await refresh(); }
             });
             vb2.addEventListener('click', async ()=>{
               if(confirm('Удалить значение тега?')){ await deleteTagValue(v.id); await refresh(); }
             });
-            row.append(span, vb1, vb2);
+            row.append(color, span, vb1, vb2);
             list.appendChild(row);
           }
           card.appendChild(list);
@@ -103,7 +111,9 @@
 
           editBtn.addEventListener('click', async ()=>{
             const nn = prompt('Новое имя тега:', g.tag.name);
-            if(nn && nn !== g.tag.name){ await updateTag(g.tag.id, nn); await refresh(); }
+            if(nn === null) return;
+            await updateTag(g.tag.id, nn || g.tag.name);
+            await refresh();
           });
           delBtn.addEventListener('click', async ()=>{
             if(confirm('Удалить тег и все его значения?')){ await deleteTag(g.tag.id); await refresh(); }
@@ -121,8 +131,9 @@
       async function main(){
         document.getElementById('addTagBtn').addEventListener('click', async ()=>{
           const name = document.getElementById('newTagName').value.trim();
+          const color = document.getElementById('newTagColor').value;
           if(!name) return;
-          await createTag(name);
+          await createTag(name, color);
           document.getElementById('newTagName').value='';
           await refresh();
         });

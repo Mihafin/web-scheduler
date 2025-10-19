@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db import get_db, engine, Base
+from sqlalchemy import text
 from .. import models, schemas
 
 
@@ -10,6 +11,12 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 @router.on_event("startup")
 def _create_tables():
     Base.metadata.create_all(bind=engine)
+    # Мягкая миграция: добавить столбец color, если его нет
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tag_values ADD COLUMN color TEXT NULL"))
+    except Exception:
+        pass
 
 
 @router.get("", response_model=list[schemas.TagOut])

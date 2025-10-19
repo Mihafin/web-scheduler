@@ -25,6 +25,7 @@ class TagOut(TagBase):
 
 class TagValueBase(BaseModel):
     value: str = Field(min_length=1)
+    color: str | None = None
 
 
 class TagValueCreate(TagValueBase):

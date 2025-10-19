@@ -23,6 +23,7 @@ class TagValue(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
     value: Mapped[str] = mapped_column(String, nullable=False)
+    color: Mapped[str | None] = mapped_column(String, nullable=True)  # HEX цвет для значения
 
     tag: Mapped[Tag] = relationship("Tag", back_populates="values")
     schedules: Mapped[list[Schedule]] = relationship(

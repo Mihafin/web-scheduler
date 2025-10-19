@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS tag_values (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tag_id INTEGER NOT NULL,
   value TEXT NOT NULL,
+  color TEXT NULL,
   CONSTRAINT fk_tag_values_tag
     FOREIGN KEY (tag_id)
     REFERENCES tags(id)

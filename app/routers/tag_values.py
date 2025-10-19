@@ -27,7 +27,7 @@ def create_tag_value(tag_id: int, data: schemas.TagValueCreate, db: Session = De
     )
     if dup:
         raise HTTPException(status_code=400, detail="Value already exists for this tag")
-    tv = models.TagValue(tag_id=tag_id, value=data.value)
+    tv = models.TagValue(tag_id=tag_id, value=data.value, color=data.color)
     db.add(tv)
     db.commit()
     db.refresh(tv)
@@ -48,6 +48,8 @@ def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depend
         if dup:
             raise HTTPException(status_code=400, detail="Value already exists for this tag")
         tv.value = data.value
+    if data.color is not None:
+        tv.color = data.color
     db.commit()
     db.refresh(tv)
     return tv
