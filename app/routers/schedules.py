@@ -102,7 +102,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
             if existing:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Time intersects with schedule id={existing.id} for unique resource tag",
+                    detail=f"Пересечение с событием \"{existing.title}\" (с {existing.date_from} по {existing.date_to})",
                 )
 
     sched.tag_values = selected_tag_values
@@ -163,7 +163,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
                 .first()
             )
             if existing:
-                raise HTTPException(status_code=400, detail=f"Time intersects with schedule id={existing.id} for unique resource tag")
+                raise HTTPException(status_code=400, detail=f"Пересечение с событием \"{existing.title}\" (с {existing.date_from} по {existing.date_to})")
 
     # Применяем обновления
     sched.title = new_title

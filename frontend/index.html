@@ -94,6 +94,25 @@
         return res.json();
       }
 
+      // Утилита: форматировать ISO в локальное время без секунд: YYYY-MM-DD HH:MM
+      function formatLocalNoSeconds(iso){
+        const d = new Date(iso);
+        const pad = (n)=> String(n).padStart(2,'0');
+        const yyyy = d.getFullYear();
+        const mm = pad(d.getMonth()+1);
+        const dd = pad(d.getDate());
+        const hh = pad(d.getHours());
+        const mi = pad(d.getMinutes());
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+      }
+      // Заменить все ISO-строки в сообщении об ошибке на локальный формат без секунд
+      function beautifyErrorMessage(msg){
+        const isoRe = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
+        return String(msg).replace(isoRe, (m)=>{
+          try { return formatLocalNoSeconds(m); } catch(_) { return m; }
+        });
+      }
+
       // Глобальные состояния
       let TAG_GROUPS = [];
       let SELECTED = new Set();
@@ -234,7 +253,7 @@
             // Сервер возвращает detail с текстом ошибки; попытаемся извлечь его
             let msg = 'Не удалось сохранить событие';
             try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
-            alert(msg);
+            alert(beautifyErrorMessage(msg));
           }
         };
 
@@ -317,7 +336,7 @@
             } catch (e) {
               let msg = 'Не удалось перенести событие';
               try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
-              alert(msg);
+            alert(beautifyErrorMessage(msg));
               info.revert();
             }
           },
@@ -328,7 +347,7 @@
             } catch (e) {
               let msg = 'Не удалось изменить длительность события';
               try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
-              alert(msg);
+            alert(beautifyErrorMessage(msg));
               info.revert();
             }
           },
