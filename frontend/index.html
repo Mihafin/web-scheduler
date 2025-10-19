@@ -208,12 +208,13 @@
           };
           if(!payload.title){ alert('Введите название'); return; }
           if(mode==='create'){
-            const ev = await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            window.calendar.addEvent({ id: String(ev.id), title: ev.title, start: ev.dateFrom, end: ev.dateTo, extendedProps:{ tagValueIds: ev.tagValueIds } });
+            await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            // Перерисовываем события из источника, чтобы применились фильтры и цвета
+            window.calendar.refetchEvents();
           } else {
-            const ev = await fetchJSON(`${API}/schedules/${data.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            const calEv = window.calendar.getEventById(String(data.id));
-            if(calEv){ calEv.setProp('title', ev.title); calEv.setStart(ev.dateFrom); calEv.setEnd(ev.dateTo); calEv.setExtendedProp('tagValueIds', ev.tagValueIds); }
+            await fetchJSON(`${API}/schedules/${data.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            // На обновление тоже делаем refetch для консистентности подсветки
+            window.calendar.refetchEvents();
           }
           closeEventModal();
         };
