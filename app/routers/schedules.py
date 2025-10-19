@@ -26,7 +26,18 @@ def list_schedules(
     if tag_value_ids:
         ids = [int(x) for x in tag_value_ids.split(",") if x]
         if ids:
-            q = q.join(models.Schedule.tag_values).filter(models.TagValue.id.in_(ids)).distinct()
+            # Группируем выбранные значения по тегу и требуем наличие хотя бы одного
+            # значения из каждой группы (И между группами, ИЛИ внутри группы)
+            selected_values = (
+                db.query(models.TagValue)
+                .filter(models.TagValue.id.in_(ids))
+                .all()
+            )
+            tag_id_to_value_ids: dict[int, list[int]] = {}
+            for tv in selected_values:
+                tag_id_to_value_ids.setdefault(tv.tag_id, []).append(tv.id)
+            for value_ids in tag_id_to_value_ids.values():
+                q = q.filter(models.Schedule.tag_values.any(models.TagValue.id.in_(value_ids)))
     rows = q.all()
     result: list[schemas.ScheduleOut] = []
     for s in rows:
