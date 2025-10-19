@@ -304,11 +304,25 @@
           },
           eventDrop: async (info) => {
             const ev = info.event;
-            await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+            try {
+              await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+            } catch (e) {
+              let msg = 'Не удалось перенести событие';
+              try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
+              alert(msg);
+              info.revert();
+            }
           },
           eventResize: async (info) => {
             const ev = info.event;
-            await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+            try {
+              await fetchJSON(`${API}/schedules/${ev.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateFrom: ev.start.toISOString(), dateTo: ev.end?.toISOString() || ev.start.toISOString() }) });
+            } catch (e) {
+              let msg = 'Не удалось изменить длительность события';
+              try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
+              alert(msg);
+              info.revert();
+            }
           },
           eventClick: async (info) => {
             const ev = info.event;
