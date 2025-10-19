@@ -131,9 +131,8 @@
       async function main(){
         document.getElementById('addTagBtn').addEventListener('click', async ()=>{
           const name = document.getElementById('newTagName').value.trim();
-          const color = document.getElementById('newTagColor').value;
           if(!name) return;
-          await createTag(name, color);
+          await createTag(name);
           document.getElementById('newTagName').value='';
           await refresh();
         });
