@@ -76,7 +76,7 @@ sqlite3 var/data.sqlite < docs/db-schema.sql
 3. Запустить API:
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
 4. (Опционально) Открыть `http://localhost:8000/docs` для Swagger UI.
