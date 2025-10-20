@@ -16,6 +16,17 @@
       .color-dot { display:inline-block; width: 12px; height: 12px; border-radius: 50%; border:1px solid #d1d5db; margin-right:6px; vertical-align: middle; }
       input[type="text"]{ padding: 6px; }
       button { cursor: pointer; }
+      /* Мобильная адаптация */
+      @media (max-width: 768px){
+        header { flex-direction: column; align-items: flex-start; gap: 6px; }
+        main { padding: 12px; }
+        .row { flex-wrap: wrap; }
+        .tag-header { flex-direction: column; align-items: stretch; gap: 10px; }
+        .tag-header .row { justify-content: space-between; }
+        input[type="text"]{ width: 100%; }
+        button { padding: 8px 10px; }
+        .card { padding: 10px; }
+      }
     </style>
   </head>
   <body>

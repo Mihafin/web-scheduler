@@ -42,6 +42,18 @@
       .fc .fc-daygrid-day.fc-day-sun { background: #f8fafc; }
       .fc .fc-timegrid-col.fc-day-sat,
       .fc .fc-timegrid-col.fc-day-sun { background: #f8fafc; }
+      /* Мобильная панель и drawer */
+      .mobile-bar { display: none; }
+      .drawer { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; z-index: 60; }
+      .drawer.open { display: block; }
+      .drawer-panel { width: 86vw; max-width: 360px; height: 100%; background: #fff; padding: 12px; overflow: auto; border-right: 1px solid #e5e7eb; }
+      .drawer-header { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
+      .drawer-close { background: transparent; border: none; font-size: 18px; cursor: pointer; }
+      @media (max-width: 768px){
+        #app { grid-template-columns: 1fr; }
+        aside { display: none; }
+        .mobile-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+      }
     </style>
   </head>
   <body>
@@ -55,8 +67,24 @@
         <button id="createBtn">+ Событие</button>
       </aside>
       <main>
+        <div class="mobile-bar">
+          <button id="openFiltersBtn">Фильтры</button>
+          <button id="createBtnMobile">+ Событие</button>
+        </div>
         <div id="calendar"></div>
       </main>
+    </div>
+
+    <!-- Мобильный drawer с фильтрами -->
+    <div id="filtersDrawer" class="drawer">
+      <div class="drawer-panel">
+        <div class="drawer-header">
+          <strong>Фильтры</strong>
+          <button id="drawerClose" class="drawer-close" aria-label="Закрыть">×</button>
+        </div>
+        <div id="filtersDrawerContent"></div>
+        <button id="createBtnDrawer">+ Событие</button>
+      </div>
     </div>
 
     <!-- Модальное окно события -->
@@ -171,6 +199,7 @@
             item.querySelector('input').addEventListener('change', (e)=>{
               if (e.target.checked) state.add(v.id); else state.delete(v.id);
               window.calendar.refetchEvents();
+              if(window.syncFiltersUI) window.syncFiltersUI();
             });
             box.appendChild(item);
           }
@@ -284,17 +313,24 @@
 
       async function main() {
         const filtersEl = document.getElementById('filters');
+        const filtersDrawerEl = document.getElementById('filtersDrawerContent');
         SELECTED = new Set();
         await loadTagsWithValues();
         if (!window.highlightTagId && TAG_GROUPS.length) {
           window.highlightTagId = TAG_GROUPS[0].tag.id;
         }
-        renderFilters(filtersEl, TAG_GROUPS, SELECTED);
+        // Синхронный ререндер для обеих панелей фильтров
+        window.syncFiltersUI = ()=>{
+          renderFilters(filtersEl, TAG_GROUPS, SELECTED);
+          if(filtersDrawerEl) renderFilters(filtersDrawerEl, TAG_GROUPS, SELECTED);
+        };
+        window.syncFiltersUI();
 
         const calendarEl = document.getElementById('calendar');
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
         const calendar = new FullCalendar.Calendar(calendarEl, {
-          initialView: 'timeGridWeek',
-          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+          initialView: isMobile ? 'timeGridDay' : 'timeGridWeek',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: (isMobile ? 'dayGridMonth,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay') },
           locale: 'ru',
           firstDay: 1,
           slotMinTime: '07:00:00',
@@ -366,12 +402,25 @@
         calendar.render();
         window.calendar = calendar;
 
-        document.getElementById('createBtn').addEventListener('click', async ()=>{
+        const openCreate = async ()=>{
           const now = new Date();
           const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0).toISOString();
           const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0, 0).toISOString();
           openEventModal('create', { startIso: start, endIso: end, tagValueIds: Array.from(SELECTED) });
-        });
+        };
+        document.getElementById('createBtn').addEventListener('click', openCreate);
+        document.getElementById('createBtnMobile').addEventListener('click', openCreate);
+        document.getElementById('createBtnDrawer').addEventListener('click', openCreate);
+
+        // Управление drawer (мобильные фильтры)
+        const drawer = document.getElementById('filtersDrawer');
+        const openFiltersBtn = document.getElementById('openFiltersBtn');
+        const drawerClose = document.getElementById('drawerClose');
+        openFiltersBtn.addEventListener('click', ()=> drawer.classList.add('open'));
+        drawerClose.addEventListener('click', ()=> drawer.classList.remove('open'));
+        drawer.addEventListener('click', (e)=>{ if(e.target === drawer) drawer.classList.remove('open'); });
+        // При начале работы синхронизируем фильтры в drawer
+        if(window.syncFiltersUI) window.syncFiltersUI();
       }
 
       main().catch(err => console.error(err));
