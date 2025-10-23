@@ -114,7 +114,17 @@
         <h3 id="eventModalTitle">Событие</h3>
         <div class="grid">
           <div class="row"><input id="evTitle" type="text" placeholder="Название" style="width:100%"/></div>
-          <div></div>
+          <div class="row" style="justify-content:flex-end; gap:6px;">
+            <label class="muted" for="evCopySelect">Скопировать...</label>
+            <select id="evCopySelect">
+              <option value="">—</option>
+              <option value="1d">На завтра</option>
+              <option value="7d">Через неделю</option>
+              <option value="14d">На 2 недели</option>
+              <option value="21d">На 3 недели</option>
+              <option value="28d">На 4 недели</option>
+            </select>
+          </div>
           <div>
             <label class="muted">Начало</label>
             <input id="evStart" type="datetime-local" style="width:100%"/>
@@ -269,6 +279,7 @@
         const startEl = document.getElementById('evStart');
         const endEl = document.getElementById('evEnd');
         const groupsEl = document.getElementById('evTagGroups');
+        const copySelect = document.getElementById('evCopySelect');
         const delBtn = document.getElementById('evDeleteBtn');
         const saveBtn = document.getElementById('evSaveBtn');
         const cancelBtn = document.getElementById('evCancelBtn');
@@ -324,6 +335,77 @@
         saveBtn.onclick = onSave;
         delBtn.onclick = onDelete;
         cancelBtn.onclick = onCancel;
+
+        const onCopyChange = async ()=>{
+          const val = copySelect.value;
+          if(!val) return;
+          // Множество смещений по дням: 1 -> [1], 7 -> [7], 14 -> [7,14], 21 -> [7,14,21], 28 -> [7,14,21,28]
+          const preset = {
+            '1d': [1],
+            '7d': [7],
+            '14d': [7, 14],
+            '21d': [7, 14, 21],
+            '28d': [7, 14, 21, 28],
+          };
+          const offsets = preset[val] || [];
+          const srcStartIso = localInputToIso(startEl.value);
+          const srcEndIso = localInputToIso(endEl.value);
+          const srcStart = new Date(srcStartIso);
+          const srcEnd = new Date(srcEndIso);
+          const selectedIdsArr = collectSelected();
+
+          // Предпроверка занятости всех дат для уникальных ресурсов
+          const uniqueGroups = TAG_GROUPS.filter(g => !!g.tag.unique_resource);
+          const uniqueGroupToSelectedValueIds = uniqueGroups.map(g => {
+            const ids = new Set(selectedIdsArr);
+            const groupIds = g.values.map(v => v.id).filter(id => ids.has(id));
+            return { tagId: g.tag.id, valueIds: groupIds };
+          }).filter(x => x.valueIds.length > 0);
+
+          try {
+            // Проверяем все смещения: если для любого смещения найдены конфликты — отменяем операцию
+            for (const d of offsets) {
+              const dstStart = new Date(srcStart.getTime()); dstStart.setDate(dstStart.getDate() + d);
+              const dstEnd = new Date(srcEnd.getTime()); dstEnd.setDate(dstEnd.getDate() + d);
+              const from = dstStart.toISOString();
+              const to = dstEnd.toISOString();
+              for (const grp of uniqueGroupToSelectedValueIds) {
+                const params = new URLSearchParams();
+                params.set('from', from);
+                params.set('to', to);
+                params.set('tag_value_ids', grp.valueIds.join(','));
+                const found = await fetchJSON(`${API}/schedules?${params}`);
+                if (Array.isArray(found) && found.length > 0) {
+                  throw new Error(`Найдены пересечения для даты ${formatLocalNoSeconds(from)} — ${formatLocalNoSeconds(to)}`);
+                }
+              }
+            }
+
+            // Если все свободно — создаём все события
+            const titleOut = (titleEl.value || '').trim() || (data.title || '');
+            if(!titleOut){ alert('Введите название'); return; }
+            for (const d of offsets) {
+              const dstStart = new Date(srcStart.getTime()); dstStart.setDate(dstStart.getDate() + d);
+              const dstEnd = new Date(srcEnd.getTime()); dstEnd.setDate(dstEnd.getDate() + d);
+              const payload = {
+                title: titleOut,
+                dateFrom: dstStart.toISOString(),
+                dateTo: dstEnd.toISOString(),
+                tagValueIds: selectedIdsArr,
+              };
+              await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            }
+            window.calendar.refetchEvents();
+            closeEventModal();
+          } catch (e) {
+            let msg = 'Не удалось скопировать событие. Найдены пересечения!';
+            try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
+            alert(beautifyErrorMessage(msg));
+          } finally {
+            copySelect.value = '';
+          }
+        };
+        copySelect.onchange = onCopyChange;
 
         wrap.classList.remove('hidden');
       }
