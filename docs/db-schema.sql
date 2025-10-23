@@ -3,7 +3,9 @@ PRAGMA foreign_keys = ON;
 -- Таблица тегов
 CREATE TABLE IF NOT EXISTS tags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE
+  name TEXT NOT NULL UNIQUE,
+  required BOOLEAN NOT NULL DEFAULT 0,
+  unique_resource BOOLEAN NOT NULL DEFAULT 0
 );
 
 -- Значения тегов (например: tag «зал» → values «зал1», «зал2»)
