@@ -1,4 +1,9 @@
-venv/
+.DS_Store
+.dockerignore
+.git/
+.gitignore
+Dockerfile
 docs/
+venv/
 scripts/
 README.md
