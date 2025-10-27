@@ -1,9 +1,9 @@
-## Деплой: Ubuntu + Nginx + SQLite + Basic Auth
+## Деплой: Ubuntu + Nginx + Cloud SQL (PostgreSQL) + Basic Auth
 
 ### Предпосылки
 
 - Ubuntu 22.04+/24.04
-- Пакеты: `nginx`, `python3`, `python3-venv`, `git`, `sqlite3`, `apache2-utils` (для `htpasswd`)
+- Пакеты: `nginx`, `python3`, `python3-venv`, `git`, `apache2-utils` (для `htpasswd`)
 
 ```bash
 sudo apt update
@@ -30,7 +30,7 @@ git clone <url-репозитория> .
 sudo -E SERVER_NAME=example.com BASIC_AUTH_USER=admin BASIC_AUTH_PASS='strongpass' bash scripts/setup_server.sh
 ```
 
-Скрипт сам установит пакеты, создаст venv, инициализирует SQLite, поднимет systemd‑сервис и настроит Nginx (включая Basic Auth, если заданы переменные).
+Скрипт сам установит пакеты, создаст venv, поднимет systemd‑сервис и настроит Nginx (включая Basic Auth, если заданы переменные). Для работы приложения обязательно задайте `DATABASE_URL` (PostgreSQL/Cloud SQL).
 
 ### Ручная установка
 
@@ -49,22 +49,27 @@ git clone <url-репозитория> .
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
-pip install fastapi uvicorn[standard] sqlalchemy pydantic alembic
+pip install fastapi uvicorn[standard] sqlalchemy pydantic alembic psycopg2-binary
 ```
 
 Структура приложения предполагается как `app/main.py` с объектом `app` (ASGI). При необходимости скорректируйте путь в `ExecStart` systemd‑юнита ниже.
 
-### Инициализация базы данных
+### Настройка базы данных
 
-```bash
-sqlite3 /opt/web_scheduler/var/data.sqlite < /opt/web_scheduler/docs/db-schema.sql
-```
+Приложение читает DSN из переменной окружения `DATABASE_URL` (обязательно). Фолбэка на SQLite нет.
 
-Убедитесь, что директория существует:
+Поддерживаемые схемы URL:
 
-```bash
-mkdir -p /opt/web_scheduler/var
-```
+- PostgreSQL (Cloud SQL PostgreSQL):
+  - `postgresql+psycopg2://USER:PASSWORD@HOST:PORT/DBNAME`
+  - Через Unix‑сокет (Cloud SQL Proxy/Connector): `postgresql+psycopg2://USER:PASSWORD@/DBNAME?host=/cloudsql/PROJECT:REGION:INSTANCE`
+
+Параметры пула можно настраивать переменными:
+
+- `DB_POOL_SIZE` (по умолчанию 5)
+- `DB_MAX_OVERFLOW` (по умолчанию 10)
+- `DB_POOL_RECYCLE` (секунды, по умолчанию 1800)
+- `DB_POOL_PRE_PING` (true/false, по умолчанию true)
 
 ### Systemd‑юнит для API
 
@@ -80,6 +85,13 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/web_scheduler
 Environment=PYTHONUNBUFFERED=1
+# Установите строку подключения к Cloud SQL (пример для PostgreSQL через Unix‑сокет)
+# Environment=DATABASE_URL=postgresql+psycopg2://user:pass@/db?host=/cloudsql/PROJECT:REGION:INSTANCE
+# Настроить пул при желании:
+# Environment=DB_POOL_SIZE=5
+# Environment=DB_MAX_OVERFLOW=10
+# Environment=DB_POOL_RECYCLE=1800
+# Environment=DB_POOL_PRE_PING=true
 ExecStart=/opt/web_scheduler/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=always
 
@@ -130,6 +142,30 @@ sudo certbot --nginx -d example.com -d www.example.com
 
 - Откройте `http://example.com` — появится запрос логина/пароля (Basic Auth)
 - После входа должна загрузиться SPA; запросы `/api/...` проксируются на Uvicorn
+
+### Подключение к Cloud SQL
+
+Варианты:
+
+- Через публичный IP инстанса Cloud SQL (брандмауэр, SSL по необходимости): используйте `HOST:PORT` напрямую в `DATABASE_URL`.
+- Через Unix‑сокет `/cloudsql/PROJECT:REGION:INSTANCE` на GCE/GKE/Cloud Run (или с установленным Cloud SQL Proxy/Connector): используйте URL‑параметр `host` (PostgreSQL).
+
+Примеры `DATABASE_URL`:
+
+- PostgreSQL (сокет):
+  `postgresql+psycopg2://app_user:strongpass@/webscheduler?host=/cloudsql/myproj:us-central1:scheduler`
+
+- PostgreSQL (IP):
+  `postgresql+psycopg2://app_user:strongpass@10.0.0.12:5432/webscheduler`
+
+Инициализация схемы: выполните SQL из `docs/db-schema.sql` в целевой БД.
+Для Postgres:
+
+```bash
+psql "postgresql://USER:PASSWORD@HOST:PORT/DBNAME" -f /opt/web_scheduler/docs/db-schema.sql
+```
+
+```
 
 ### Обновление
 

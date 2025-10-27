@@ -1,33 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from ..db import get_db, engine, Base
-from sqlalchemy import text
+from ..db import get_db
 from .. import models, schemas
 
 
 router = APIRouter(prefix="/tags", tags=["tags"])
-
-
-@router.on_event("startup")
-def _create_tables():
-    Base.metadata.create_all(bind=engine)
-    # Мягкая миграция: добавить столбец color, если его нет
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tag_values ADD COLUMN color TEXT NULL"))
-    except Exception:
-        pass
-    # Мягкая миграция: добавить столбцы required и unique_resource к tags, если их нет
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tags ADD COLUMN required BOOLEAN NOT NULL DEFAULT 0"))
-    except Exception:
-        pass
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE tags ADD COLUMN unique_resource BOOLEAN NOT NULL DEFAULT 0"))
-    except Exception:
-        pass
 
 
 @router.get("", response_model=list[schemas.TagOut])
