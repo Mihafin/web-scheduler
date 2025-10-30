@@ -55,6 +55,11 @@
       .drawer-panel { width: 86vw; max-width: 360px; height: 100%; background: #fff; padding: 12px; overflow: auto; border-right: 1px solid #e5e7eb; }
       .drawer-header { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
       .drawer-close { background: transparent; border: none; font-size: 18px; cursor: pointer; }
+      /* Печатная легенда по цветам скрыта по умолчанию */
+      .print-legend { display: none; font-size: 12px; color: #374151; }
+      .print-legend .legend-title { margin-bottom: 4px; }
+      .print-legend .legend-items { display: flex; flex-wrap: wrap; gap: 10px; }
+      .print-legend .legend-item { display: inline-flex; align-items: center; gap: 4px; }
       @media (max-width: 768px){
         #app { grid-template-columns: 1fr; }
         aside { display: none; }
@@ -62,6 +67,28 @@
         .mobile-calbar { display: flex; }
         /* Спрятать стандартный header календаря на мобильных */
         .fc .fc-header-toolbar { display: none; }
+      }
+      @media print{
+        #app { grid-template-columns: 1fr; }
+        aside { display: none !important; }
+        .mobile-bar, .mobile-calbar { display: none !important; }
+        .fc .fc-header-toolbar { display: none; }
+        /* Занять доступную область печати: убрать фиксированные высоты и скроллы */
+        html, body { height: auto; overflow: visible; }
+        #app { height: auto; }
+        main { overflow: visible; }
+        #calendar { height: auto !important; min-height: 0; }
+        .fc, .fc .fc-scroller { height: auto !important; max-height: none !important; overflow: visible !important; }
+        /* Убрать подсветку текущего дня */
+        .fc .fc-col-header-cell.fc-day-today,
+        .fc .fc-daygrid-day.fc-day-today,
+        .fc .fc-timegrid-col.fc-day-today,
+        .fc .fc-day-today { background: transparent !important; }
+        /* Показать легенду только при печати */
+        .print-legend { display: block; margin-bottom: 8px; }
+        .print-legend .legend-title { display: inline; margin: 0; margin-right: 8px; }
+        .print-legend .legend-items { display: inline-flex; gap: 10px; flex-wrap: nowrap; white-space: nowrap; }
+        .print-legend .legend-item { white-space: nowrap; }
       }
     </style>
   </head>
@@ -92,6 +119,7 @@
             <button id="mbDay" class="active">day</button>
           </div>
         </div>
+        <div id="printLegend" class="print-legend"></div>
         <div id="calendar"></div>
       </main>
     </div>
@@ -212,6 +240,7 @@
         select.addEventListener('change', () => {
           window.highlightTagId = Number(select.value);
           if (window.calendar) window.calendar.refetchEvents();
+          if (window.syncPrintLegend) window.syncPrintLegend();
         });
         selectWrap.appendChild(select);
         cont.appendChild(selectWrap);
@@ -239,6 +268,25 @@
       }
 
       // Управление тегами вынесено на /tags.html. На главной оставлены только фильтры.
+
+      function renderPrintLegend(container, group){
+        container.innerHTML = '';
+        if(!group) return;
+        const title = document.createElement('div');
+        title.className = 'legend-title';
+        title.textContent = `Легенда: ${group.tag.name}`;
+        container.appendChild(title);
+        const items = document.createElement('div');
+        items.className = 'legend-items';
+        for(const v of group.values){
+          const item = document.createElement('div'); item.className = 'legend-item';
+          const dot = document.createElement('span'); dot.className = 'color-dot'; dot.style.background = v.color || '#9ca3af';
+          const label = document.createElement('span'); label.textContent = v.value;
+          item.appendChild(dot); item.appendChild(label);
+          items.appendChild(item);
+        }
+        container.appendChild(items);
+      }
 
       // МОДАЛ СОБЫТИЯ
       function isoToLocalInputValue(iso){
@@ -417,6 +465,7 @@
       async function main() {
         const filtersEl = document.getElementById('filters');
         const filtersDrawerEl = document.getElementById('filtersDrawerContent');
+        const printLegendEl = document.getElementById('printLegend');
         SELECTED = new Set();
         await loadTagsWithValues();
         if (!window.highlightTagId && TAG_GROUPS.length) {
@@ -428,6 +477,15 @@
           if(filtersDrawerEl) renderFilters(filtersDrawerEl, TAG_GROUPS, SELECTED);
         };
         window.syncFiltersUI();
+
+        // Синхронизация печатной легенды по текущему тегу подсветки
+        window.syncPrintLegend = ()=>{
+          if(!printLegendEl) return;
+          const hlId = window.highlightTagId;
+          const grp = TAG_GROUPS.find(g => g.tag.id === hlId) || TAG_GROUPS[0] || null;
+          renderPrintLegend(printLegendEl, grp);
+        };
+        window.syncPrintLegend();
 
         const calendarEl = document.getElementById('calendar');
         const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -504,6 +562,22 @@
         });
         calendar.render();
         window.calendar = calendar;
+
+        // Адаптировать высоту календаря под печать
+        window.addEventListener('beforeprint', () => {
+          try {
+            window._prevCalHeight = window.calendar?.getOption('height');
+            window.calendar?.setOption('height', 'auto');
+            setTimeout(() => window.calendar?.updateSize(), 0);
+          } catch(_) {}
+        });
+        window.addEventListener('afterprint', () => {
+          try {
+            const prev = window._prevCalHeight ?? '100%';
+            window.calendar?.setOption('height', prev);
+            setTimeout(() => window.calendar?.updateSize(), 0);
+          } catch(_) {}
+        });
 
         // Обновление заголовка (диапазона дат) для мобильной панели
         const mbTitle = document.getElementById('mbTitle');
