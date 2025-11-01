@@ -141,7 +141,12 @@
       <div class="modal">
         <h3 id="eventModalTitle">Событие</h3>
         <div class="grid">
-          <div class="row"><input id="evTitle" type="text" placeholder="Название" style="width:100%"/></div>
+          <div class="row" style="justify-content:space-between; align-items:center; gap:8px;">
+            <input id="evTitle" type="text" placeholder="Название" style="width:100%"/>
+            <label class="muted" style="white-space:nowrap;">
+              <input id="evCanceled" type="checkbox"/> Отмена
+            </label>
+          </div>
           <div class="row" style="justify-content:flex-end; gap:6px;">
             <label class="muted" for="evCopySelect">Скопировать...</label>
             <select id="evCopySelect">
@@ -206,6 +211,7 @@
       // Глобальные состояния
       let TAG_GROUPS = [];
       let SELECTED = new Set();
+      let SHOW_CANCELED = true;
 
       async function loadTagsWithValues() {
         const tags = await fetchJSON(`${API}/tags`);
@@ -244,6 +250,15 @@
         });
         selectWrap.appendChild(select);
         cont.appendChild(selectWrap);
+        // Флажок отображения отменённых
+        const canceledWrap = document.createElement('div'); canceledWrap.className = 'tag-values';
+        const canceledLabel = document.createElement('label'); canceledLabel.className='tag-line';
+        const chk = document.createElement('input'); chk.type='checkbox'; chk.checked = SHOW_CANCELED; chk.id='showCanceled';
+        canceledLabel.appendChild(chk);
+        canceledLabel.appendChild(document.createTextNode(' Показывать отмененные'));
+        chk.addEventListener('change', ()=>{ SHOW_CANCELED = chk.checked; if(window.calendar) window.calendar.refetchEvents(); });
+        canceledWrap.appendChild(canceledLabel);
+        cont.appendChild(canceledWrap);
         // Чекбоксы для фильтрации по значениям
         for (const g of groups) {
           const h = document.createElement('div');
@@ -328,6 +343,7 @@
         const endEl = document.getElementById('evEnd');
         const groupsEl = document.getElementById('evTagGroups');
         const copySelect = document.getElementById('evCopySelect');
+        const canceledChk = document.getElementById('evCanceled');
         const delBtn = document.getElementById('evDeleteBtn');
         const saveBtn = document.getElementById('evSaveBtn');
         const cancelBtn = document.getElementById('evCancelBtn');
@@ -341,6 +357,7 @@
         endEl.value = isoToLocalInputValue(data.endIso);
         modalTitle.textContent = mode === 'create' ? 'Создание события' : 'Редактирование события';
         delBtn.style.display = mode === 'edit' ? 'inline-block' : 'none';
+        canceledChk.checked = !!data.isCanceled;
 
         const collectSelected = ()=> Array.from(groupsEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>Number(i.value));
 
@@ -349,7 +366,8 @@
             title: titleEl.value.trim(),
             dateFrom: localInputToIso(startEl.value),
             dateTo: localInputToIso(endEl.value),
-            tagValueIds: collectSelected()
+            tagValueIds: collectSelected(),
+            isCanceled: !!canceledChk.checked
           };
           if(!payload.title){ alert('Введите название'); return; }
           try{
@@ -508,7 +526,8 @@
                 params.set('to', info.endStr);
                 if (SELECTED.size) params.set('tag_value_ids', Array.from(SELECTED).join(','));
                 const data = await fetchJSON(`${API}/schedules?${params}`);
-                const events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds } }));
+                let events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds, isCanceled: !!e.isCanceled } }));
+                if(!SHOW_CANCELED){ events = events.filter(ev => !ev.extendedProps.isCanceled); }
                 // Раскраска по выбранному тегу: цвет берём у значения; иначе серый
                 const hlTagId = window.highlightTagId || null;
                 if(hlTagId){
@@ -519,6 +538,10 @@
                     }
                   }
                   for(const ev of events){
+                    if(ev.extendedProps.isCanceled){
+                      ev.backgroundColor = '#9ca3af'; ev.borderColor = '#9ca3af'; ev.textColor = '#fff';
+                      continue;
+                    }
                     const tvIds = ev.extendedProps.tagValueIds || [];
                     let chosenColor = null;
                     for(const id of tvIds){ if(tvColorMap.has(id)){ chosenColor = tvColorMap.get(id); break; } }
@@ -557,7 +580,7 @@
           },
           eventClick: async (info) => {
             const ev = info.event;
-            openEventModal('edit', { id: Number(ev.id), title: ev.title, startIso: ev.start.toISOString(), endIso: (ev.end?.toISOString() || ev.start.toISOString()), tagValueIds: ev.extendedProps?.tagValueIds || [] });
+            openEventModal('edit', { id: Number(ev.id), title: ev.title, startIso: ev.start.toISOString(), endIso: (ev.end?.toISOString() || ev.start.toISOString()), tagValueIds: ev.extendedProps?.tagValueIds || [], isCanceled: !!ev.extendedProps?.isCanceled });
           }
         });
         calendar.render();

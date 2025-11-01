@@ -50,6 +50,7 @@ def list_schedules(
                 dateFrom=s.date_from,
                 dateTo=s.date_to,
                 tagValueIds=[tv.id for tv in s.tag_values],
+                isCanceled=s.is_canceled,
             )
         )
     return result
@@ -76,7 +77,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
         if missing_tag_names:
             raise HTTPException(status_code=400, detail=f"Missing required tags: {', '.join(missing_tag_names)}")
 
-    # 2) Проверка: уникальные ресурсы не пересекаются по времени
+    # 2) Проверка: уникальные ресурсы не пересекаются по времени (игнорируя отменённые события)
     unique_tags = db.query(models.Tag).filter(models.Tag.unique_resource == True).all()
     if unique_tags and selected_tag_values:
         # сгруппировать выбранные значения по тегу
@@ -98,6 +99,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
                     models.TagValue.id.in_(value_ids),
                     ~(models.Schedule.date_to <= data.dateFrom),
                     ~(models.Schedule.date_from >= data.dateTo),
+                    models.Schedule.is_canceled == False,
                 )
                 .first()
             )
@@ -117,6 +119,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
         dateFrom=sched.date_from,
         dateTo=sched.date_to,
         tagValueIds=[tv.id for tv in sched.tag_values],
+        isCanceled=sched.is_canceled,
     )
 
 
@@ -129,6 +132,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     new_title = data.title if data.title is not None else sched.title
     new_from = data.dateFrom if data.dateFrom is not None else sched.date_from
     new_to = data.dateTo if data.dateTo is not None else sched.date_to
+    new_is_canceled = data.isCanceled if data.isCanceled is not None else sched.is_canceled
     if new_to < new_from:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
     if data.tagValueIds is not None:
@@ -148,7 +152,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
 
     # Проверка уникальных ресурсов: пересечения по времени с другими событиями
     unique_tags = db.query(models.Tag).filter(models.Tag.unique_resource == True).all()
-    if unique_tags and new_tag_values:
+    if unique_tags and new_tag_values and not new_is_canceled:
         unique_tag_ids = {t.id for t in unique_tags}
         # значения по уникальным тегам
         uniq_value_ids = [tv.id for tv in new_tag_values if tv.tag_id in unique_tag_ids]
@@ -161,6 +165,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
                     models.TagValue.id.in_(uniq_value_ids),
                     ~(models.Schedule.date_to <= new_from),
                     ~(models.Schedule.date_from >= new_to),
+                    models.Schedule.is_canceled == False,
                 )
                 .first()
             )
@@ -172,6 +177,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched.date_from = new_from
     sched.date_to = new_to
     sched.tag_values = new_tag_values
+    sched.is_canceled = new_is_canceled
     db.commit()
     db.refresh(sched)
     return schemas.ScheduleOut(
@@ -180,6 +186,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
         dateFrom=sched.date_from,
         dateTo=sched.date_to,
         tagValueIds=[tv.id for tv in sched.tag_values],
+        isCanceled=sched.is_canceled,
     )
 
 

@@ -41,6 +41,7 @@ class Schedule(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     date_from: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
     date_to: Mapped[str] = mapped_column(String, nullable=False)
+    is_canceled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     tag_values: Mapped[list[TagValue]] = relationship(
         secondary="schedule_tag_values",

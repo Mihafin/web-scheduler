@@ -62,6 +62,7 @@ class ScheduleUpdate(BaseModel):
     dateFrom: Optional[str] = None
     dateTo: Optional[str] = None
     tagValueIds: Optional[List[int]] = None
+    isCanceled: Optional[bool] = None
 
 
 class ScheduleOut(BaseModel):
@@ -70,6 +71,7 @@ class ScheduleOut(BaseModel):
     dateFrom: str
     dateTo: str
     tagValueIds: List[int]
+    isCanceled: bool
 
     class Config:
         from_attributes = True
