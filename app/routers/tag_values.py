@@ -44,6 +44,8 @@ def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depend
     tv = db.get(models.TagValue, id)
     if not tv:
         raise HTTPException(status_code=404, detail="Tag value not found")
+    old_value = tv.value
+    old_color = tv.color
     if data.value:
         dup = (
             db.query(models.TagValue)
@@ -57,8 +59,14 @@ def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depend
         tv.color = data.color
     db.commit()
     db.refresh(tv)
+    changes: list[str] = []
+    if tv.value != old_value:
+        changes.append(f"value: {old_value} -> {tv.value}")
+    if tv.color != old_color:
+        changes.append(f"color: {old_color} -> {tv.color}")
+    details = "; ".join(changes) if changes else None
     try:
-        write_audit_log(db, user, "UPDATE", "tag_values", tv.id, details=f"value={tv.value}; color={tv.color}")
+        write_audit_log(db, user, "UPDATE", "tag_values", tv.id, details=details)
     except Exception:
         pass
     return tv
@@ -69,10 +77,11 @@ def delete_tag_value(id: int, db: Session = Depends(get_db), user: str | None = 
     tv = db.get(models.TagValue, id)
     if not tv:
         raise HTTPException(status_code=404, detail="Tag value not found")
+    del_details = f"tag_id={tv.tag_id}; value={tv.value}; color={tv.color}"
     db.delete(tv)
     db.commit()
     try:
-        write_audit_log(db, user, "DELETE", "tag_values", id)
+        write_audit_log(db, user, "DELETE", "tag_values", id, details=del_details)
     except Exception:
         pass
     return None

@@ -133,6 +133,12 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched = db.get(models.Schedule, id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    # Снимем старые значения для построения diff
+    old_title = sched.title
+    old_from = sched.date_from
+    old_to = sched.date_to
+    old_is_canceled = sched.is_canceled
+    old_tag_ids = [tv.id for tv in sched.tag_values]
     # Сформируем итоговые значения после обновления (не применяя к БД до валидаций)
     new_title = data.title if data.title is not None else sched.title
     new_from = data.dateFrom if data.dateFrom is not None else sched.date_from
@@ -185,8 +191,22 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched.is_canceled = new_is_canceled
     db.commit()
     db.refresh(sched)
+    # Сборка только изменившихся полей
+    changes: list[str] = []
+    if new_title != old_title:
+        changes.append(f"title: {old_title} -> {new_title}")
+    if new_from != old_from:
+        changes.append(f"date_from: {old_from} -> {new_from}")
+    if new_to != old_to:
+        changes.append(f"date_to: {old_to} -> {new_to}")
+    if new_is_canceled != old_is_canceled:
+        changes.append(f"is_canceled: {old_is_canceled} -> {new_is_canceled}")
+    new_tag_ids = [tv.id for tv in sched.tag_values]
+    if sorted(new_tag_ids) != sorted(old_tag_ids):
+        changes.append(f"tag_value_ids: {sorted(old_tag_ids)} -> {sorted(new_tag_ids)}")
+    details = "; ".join(changes) if changes else None
     try:
-        write_audit_log(db, user, "UPDATE", "schedules", sched.id, details=f"title={sched.title}; from={sched.date_from}; to={sched.date_to}; is_canceled={sched.is_canceled}")
+        write_audit_log(db, user, "UPDATE", "schedules", sched.id, details=details)
     except Exception:
         pass
     return schemas.ScheduleOut(
@@ -204,10 +224,11 @@ def delete_schedule(id: int, db: Session = Depends(get_db), user: str | None = D
     sched = db.get(models.Schedule, id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    del_details = f"title={sched.title}; from={sched.date_from}; to={sched.date_to}"
     db.delete(sched)
     db.commit()
     try:
-        write_audit_log(db, user, "DELETE", "schedules", id)
+        write_audit_log(db, user, "DELETE", "schedules", id, details=del_details)
     except Exception:
         pass
     return None

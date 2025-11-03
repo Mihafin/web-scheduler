@@ -63,6 +63,9 @@ def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_d
     tag = db.get(models.Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
+    old_name = tag.name
+    old_required = tag.required
+    old_unique = tag.unique_resource
     if data.name:
         dup = db.query(models.Tag).filter(models.Tag.name == data.name, models.Tag.id != tag_id).first()
         if dup:
@@ -75,8 +78,16 @@ def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_d
         tag.unique_resource = data.unique_resource
     db.commit()
     db.refresh(tag)
+    changes: list[str] = []
+    if tag.name != old_name:
+        changes.append(f"name: {old_name} -> {tag.name}")
+    if tag.required != old_required:
+        changes.append(f"required: {old_required} -> {tag.required}")
+    if tag.unique_resource != old_unique:
+        changes.append(f"unique_resource: {old_unique} -> {tag.unique_resource}")
+    details = "; ".join(changes) if changes else None
     try:
-        write_audit_log(db, user, "UPDATE", "tags", tag.id, details=f"name={tag.name}; required={tag.required}; unique_resource={tag.unique_resource}")
+        write_audit_log(db, user, "UPDATE", "tags", tag.id, details=details)
     except Exception:
         pass
     return tag
@@ -87,10 +98,11 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db), user: str | None = De
     tag = db.get(models.Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
+    del_details = f"name={tag.name}; required={tag.required}; unique_resource={tag.unique_resource}"
     db.delete(tag)
     db.commit()
     try:
-        write_audit_log(db, user, "DELETE", "tags", tag_id)
+        write_audit_log(db, user, "DELETE", "tags", tag_id, details=del_details)
     except Exception:
         pass
     return None
