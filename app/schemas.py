@@ -77,3 +77,12 @@ class ScheduleOut(BaseModel):
         from_attributes = True
 
 
+class AuditEntryOut(BaseModel):
+    id: int
+    ts: str
+    username: str | None
+    action: str
+    entity: str
+    entityId: int | None
+    details: str | None = None
+

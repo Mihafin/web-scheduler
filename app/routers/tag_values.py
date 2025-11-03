@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models, schemas
+from ..utils import get_remote_user, write_audit_log
 
 
 router = APIRouter(prefix="/tags", tags=["tag_values"])
@@ -16,7 +17,7 @@ def list_tag_values(tag_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{tag_id}/values", response_model=schemas.TagValueOut)
-def create_tag_value(tag_id: int, data: schemas.TagValueCreate, db: Session = Depends(get_db)):
+def create_tag_value(tag_id: int, data: schemas.TagValueCreate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     tag = db.get(models.Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -31,11 +32,15 @@ def create_tag_value(tag_id: int, data: schemas.TagValueCreate, db: Session = De
     db.add(tv)
     db.commit()
     db.refresh(tv)
+    try:
+        write_audit_log(db, user, "CREATE", "tag_values", tv.id, details=f"tag_id={tag_id}; value={tv.value}; color={tv.color}")
+    except Exception:
+        pass
     return tv
 
 
 @router.put("/values/{id}", response_model=schemas.TagValueOut)
-def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depends(get_db)):
+def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     tv = db.get(models.TagValue, id)
     if not tv:
         raise HTTPException(status_code=404, detail="Tag value not found")
@@ -52,16 +57,24 @@ def update_tag_value(id: int, data: schemas.TagValueUpdate, db: Session = Depend
         tv.color = data.color
     db.commit()
     db.refresh(tv)
+    try:
+        write_audit_log(db, user, "UPDATE", "tag_values", tv.id, details=f"value={tv.value}; color={tv.color}")
+    except Exception:
+        pass
     return tv
 
 
 @router.delete("/values/{id}", status_code=204)
-def delete_tag_value(id: int, db: Session = Depends(get_db)):
+def delete_tag_value(id: int, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     tv = db.get(models.TagValue, id)
     if not tv:
         raise HTTPException(status_code=404, detail="Tag value not found")
     db.delete(tv)
     db.commit()
+    try:
+        write_audit_log(db, user, "DELETE", "tag_values", id)
+    except Exception:
+        pass
     return None
 
 

@@ -56,3 +56,14 @@ class ScheduleTagValue(Base):
     tag_value_id: Mapped[int] = mapped_column(ForeignKey("tag_values.id", ondelete="CASCADE"), primary_key=True)
 
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601 UTC timestamp
+    username: Mapped[str | None] = mapped_column(String, nullable=True)
+    action: Mapped[str] = mapped_column(String, nullable=False)  # CREATE/UPDATE/DELETE
+    entity: Mapped[str] = mapped_column(String, nullable=False)  # table/model name
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[str | None] = mapped_column(String, nullable=True)
+

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db, engine, Base
 from sqlalchemy import text
 from .. import models, schemas
+from ..utils import get_remote_user, write_audit_log
 
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -42,7 +43,7 @@ def list_tags(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.TagOut)
-def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db)):
+def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     exists = db.query(models.Tag).filter(models.Tag.name == data.name).first()
     if exists:
         raise HTTPException(status_code=400, detail="Tag with this name already exists")
@@ -50,11 +51,15 @@ def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db)):
     db.add(tag)
     db.commit()
     db.refresh(tag)
+    try:
+        write_audit_log(db, user, "CREATE", "tags", tag.id, details=f"name={tag.name}; required={tag.required}; unique_resource={tag.unique_resource}")
+    except Exception:
+        pass
     return tag
 
 
 @router.put("/{tag_id}", response_model=schemas.TagOut)
-def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_db)):
+def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     tag = db.get(models.Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -70,16 +75,24 @@ def update_tag(tag_id: int, data: schemas.TagUpdate, db: Session = Depends(get_d
         tag.unique_resource = data.unique_resource
     db.commit()
     db.refresh(tag)
+    try:
+        write_audit_log(db, user, "UPDATE", "tags", tag.id, details=f"name={tag.name}; required={tag.required}; unique_resource={tag.unique_resource}")
+    except Exception:
+        pass
     return tag
 
 
 @router.delete("/{tag_id}", status_code=204)
-def delete_tag(tag_id: int, db: Session = Depends(get_db)):
+def delete_tag(tag_id: int, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     tag = db.get(models.Tag, tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     db.delete(tag)
     db.commit()
+    try:
+        write_audit_log(db, user, "DELETE", "tags", tag_id)
+    except Exception:
+        pass
     return None
 
 

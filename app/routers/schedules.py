@@ -3,6 +3,7 @@ from sqlalchemy import or_, and_, text
 from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models, schemas
+from ..utils import get_remote_user, write_audit_log
 
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
@@ -57,7 +58,7 @@ def list_schedules(
 
 
 @router.post("", response_model=schemas.ScheduleOut)
-def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db)):
+def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     if data.dateTo < data.dateFrom:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
     sched = models.Schedule(title=data.title, date_from=data.dateFrom, date_to=data.dateTo)
@@ -113,6 +114,10 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
     db.add(sched)
     db.commit()
     db.refresh(sched)
+    try:
+        write_audit_log(db, user, "CREATE", "schedules", sched.id, details=f"title={sched.title}; from={sched.date_from}; to={sched.date_to}")
+    except Exception:
+        pass
     return schemas.ScheduleOut(
         id=sched.id,
         title=sched.title,
@@ -124,7 +129,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db))
 
 
 @router.put("/{id}", response_model=schemas.ScheduleOut)
-def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends(get_db)):
+def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     sched = db.get(models.Schedule, id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
@@ -180,6 +185,10 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched.is_canceled = new_is_canceled
     db.commit()
     db.refresh(sched)
+    try:
+        write_audit_log(db, user, "UPDATE", "schedules", sched.id, details=f"title={sched.title}; from={sched.date_from}; to={sched.date_to}; is_canceled={sched.is_canceled}")
+    except Exception:
+        pass
     return schemas.ScheduleOut(
         id=sched.id,
         title=sched.title,
@@ -191,12 +200,16 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
 
 
 @router.delete("/{id}", status_code=204)
-def delete_schedule(id: int, db: Session = Depends(get_db)):
+def delete_schedule(id: int, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     sched = db.get(models.Schedule, id)
     if not sched:
         raise HTTPException(status_code=404, detail="Schedule not found")
     db.delete(sched)
     db.commit()
+    try:
+        write_audit_log(db, user, "DELETE", "schedules", id)
+    except Exception:
+        pass
     return None
 
 

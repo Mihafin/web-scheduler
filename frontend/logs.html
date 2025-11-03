@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audit Logs</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+        header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        input[type=number] { width: 80px; padding: 6px 8px; }
+        button { padding: 6px 12px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; vertical-align: top; }
+        th { background: #fafafa; position: sticky; top: 0; }
+        .muted { color: #666; }
+        .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; }
+        .wrap { white-space: pre-wrap; word-break: break-word; }
+    </style>
+</head>
+<body>
+    <header>
+        <h2 style="margin:0">Журнал действий</h2>
+        <label class="muted">за&nbsp;<input id="days" type="number" min="1" max="365" value="2" />&nbsp;дн.</label>
+        <button id="reload">Обновить</button>
+        <a href="/" style="margin-left:auto">На главную</a>
+    </header>
+
+    <table id="logs-table">
+        <thead>
+            <tr>
+                <th>Время (UTC)</th>
+                <th>Пользователь</th>
+                <th>Действие</th>
+                <th>Сущность</th>
+                <th>ID</th>
+                <th>Детали</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        async function loadLogs() {
+            const days = Number(document.getElementById('days').value) || 2;
+            const res = await fetch(`/api/audit?days=${encodeURIComponent(days)}`);
+            if (!res.ok) {
+                alert('Ошибка загрузки лога');
+                return;
+            }
+            const data = await res.json();
+            const tbody = document.querySelector('#logs-table tbody');
+            tbody.innerHTML = '';
+            for (const row of data) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="mono">${escapeHtml(row.ts || '')}</td>
+                    <td>${escapeHtml(row.username || '')}</td>
+                    <td>${escapeHtml(row.action || '')}</td>
+                    <td>${escapeHtml(row.entity || '')}</td>
+                    <td class="mono">${row.entityId ?? ''}</td>
+                    <td class="wrap">${escapeHtml(row.details || '')}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        document.getElementById('reload').addEventListener('click', loadLogs);
+        loadLogs();
+    </script>
+</body>
+<!--
+  This page lists audit entries recorded by the backend. Nginx sets X-Remote-User.
+-->
+</html>
+
+
