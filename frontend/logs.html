@@ -28,7 +28,7 @@
     <table id="logs-table">
         <thead>
             <tr>
-                <th>Время (UTC)</th>
+                <th>Время (локальное)</th>
                 <th>Пользователь</th>
                 <th>Действие</th>
                 <th>Сущность</th>
@@ -53,7 +53,7 @@
             for (const row of data) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="mono">${escapeHtml(row.ts || '')}</td>
+                    <td class="mono">${formatLocal(row.ts)}</td>
                     <td>${escapeHtml(row.username || '')}</td>
                     <td>${escapeHtml(row.action || '')}</td>
                     <td>${escapeHtml(row.entity || '')}</td>
@@ -71,6 +71,17 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+        }
+
+        function formatLocal(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d)) return escapeHtml(iso);
+            // Localized date & time with seconds
+            return d.toLocaleString(undefined, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
         }
 
         document.getElementById('reload').addEventListener('click', loadLogs);
