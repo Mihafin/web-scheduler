@@ -21,11 +21,13 @@
       .day h3 { margin: 0 0 6px 0; font-size: 16px; }
       .event { margin-left: 18px; }
       .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .print-info { display: none; font-size: 12px; color: #374151; margin: 8px 0; }
       input[type="date"] { padding: 6px 8px; }
       @media print {
-        header, .panel .controls, .panel .tags, .panel .muted, .panel #filters, .panel #filtersHeader, .panel #actionsRow { display: none !important; }
+        header, .panel { display: none !important; }
         body { background: #fff; }
         .report { border: 0; padding: 0; }
+        .print-info { display: block; }
       }
     </style>
   </head>
@@ -65,6 +67,7 @@
           <button id="print" class="btn secondary">Печать PDF</button>
         </div>
       </div>
+      <div id="printInfo" class="print-info"></div>
       <div id="report" class="report"></div>
     </main>
 
@@ -116,7 +119,7 @@
           for(const v of values){
             const lab = document.createElement('label');
             const iv = document.createElement('input'); iv.type='checkbox'; iv.value=String(v.id);
-            iv.addEventListener('change', (e)=>{ const id = Number(v.id); if(e.target.checked) SELECTED_VALUE_IDS.add(id); else SELECTED_VALUE_IDS.delete(id); });
+            iv.addEventListener('change', (e)=>{ const id = Number(v.id); if(e.target.checked) SELECTED_VALUE_IDS.add(id); else SELECTED_VALUE_IDS.delete(id); updatePrintInfo(); });
             lab.appendChild(iv);
             lab.appendChild(document.createTextNode(' '+v.value));
             box.appendChild(lab);
@@ -125,7 +128,8 @@
         }
         const showCanceledChk = document.getElementById('showCanceled');
         showCanceledChk.checked = SHOW_CANCELED;
-        showCanceledChk.addEventListener('change', (e)=>{ SHOW_CANCELED = !!e.target.checked; });
+        showCanceledChk.addEventListener('change', (e)=>{ SHOW_CANCELED = !!e.target.checked; updatePrintInfo(); });
+        updatePrintInfo();
       }
 
       function groupByDay(sortedEvents){
@@ -190,6 +194,17 @@
         let rows = await fetchJSON(`${API}/schedules?${params}`);
         if(!SHOW_CANCELED){ rows = rows.filter(r => !r.isCanceled); }
         renderReport(rows);
+        updatePrintInfo();
+      }
+
+      function updatePrintInfo(){
+        const infoEl = document.getElementById('printInfo');
+        if(!infoEl) return;
+        const values = Array.from(SELECTED_VALUE_IDS).map(id => tagValueIdToValue.get(id)).filter(Boolean);
+        const parts = [];
+        parts.push(`Значения: ${values.length ? values.join(', ') : 'все'}`);
+        parts.push(SHOW_CANCELED ? 'включая отмененные' : 'без отмененных');
+        infoEl.textContent = parts.join(' | ');
       }
 
       document.getElementById('gen').addEventListener('click', generate);
