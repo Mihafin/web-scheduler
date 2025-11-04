@@ -200,11 +200,28 @@
       function updatePrintInfo(){
         const infoEl = document.getElementById('printInfo');
         if(!infoEl) return;
-        const values = Array.from(SELECTED_VALUE_IDS).map(id => tagValueIdToValue.get(id)).filter(Boolean);
-        const parts = [];
-        parts.push(`Значения: ${values.length ? values.join(', ') : 'все'}`);
-        parts.push(SHOW_CANCELED ? 'включая отмененные' : 'без отмененных');
-        infoEl.textContent = parts.join(' | ');
+        const selected = Array.from(SELECTED_VALUE_IDS);
+        let text = '';
+        if(selected.length === 0){
+          text = 'Значения: все';
+        } else {
+          // Сгруппировать выбранные значения по тегу и вывести: «Тег: v1, v2; Тег2: ...»
+          const byTag = new Map();
+          for(const id of selected){
+            const tagId = tagValueIdToTagId.get(id);
+            const val = tagValueIdToValue.get(id);
+            if(!tagId || !val) continue;
+            if(!byTag.has(tagId)) byTag.set(tagId, []);
+            byTag.get(tagId).push(val);
+          }
+          const segs = [];
+          for(const [tagId, vals] of byTag.entries()){
+            segs.push(`${tagIdToName.get(tagId) || 'Тег'}: ${vals.join(', ')}`);
+          }
+          text = `Значения: ${segs.join('; ')}`;
+        }
+        const canceledSeg = SHOW_CANCELED ? 'включая отмененные' : 'без отмененных';
+        infoEl.textContent = `${text} | ${canceledSeg}`;
       }
 
       document.getElementById('gen').addEventListener('click', generate);
