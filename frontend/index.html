@@ -60,6 +60,7 @@
       .print-legend .legend-title { margin-bottom: 4px; }
       .print-legend .legend-items { display: flex; flex-wrap: wrap; gap: 10px; }
       .print-legend .legend-item { display: inline-flex; align-items: center; gap: 4px; }
+      .print-filters { display: none; font-size: 12px; color: #374151; }
       @media (max-width: 768px){
         #app { grid-template-columns: 1fr; }
         aside { display: none; }
@@ -84,8 +85,9 @@
         .fc .fc-daygrid-day.fc-day-today,
         .fc .fc-timegrid-col.fc-day-today,
         .fc .fc-day-today { background: transparent !important; }
-        /* Показать легенду только при печати */
-        .print-legend { display: block; margin-bottom: 8px; }
+        /* Показать легенду и выбранные фильтры при печати (в одну строку) */
+        .print-legend { display: inline-block; margin-bottom: 8px; }
+        .print-filters { display: inline-block; margin-left: 12px; }
         .print-legend .legend-title { display: inline; margin: 0; margin-right: 8px; }
         .print-legend .legend-items { display: inline-flex; gap: 10px; flex-wrap: nowrap; white-space: nowrap; }
         .print-legend .legend-item { white-space: nowrap; }
@@ -119,7 +121,10 @@
             <button id="mbDay" class="active">day</button>
           </div>
         </div>
-        <div id="printLegend" class="print-legend"></div>
+        <div>
+          <span id="printLegend" class="print-legend"></span>
+          <span id="printFiltersSelected" class="print-filters"></span>
+        </div>
         <div id="calendar"></div>
       </main>
     </div>
@@ -256,7 +261,7 @@
         const chk = document.createElement('input'); chk.type='checkbox'; chk.checked = SHOW_CANCELED; chk.id='showCanceled';
         canceledLabel.appendChild(chk);
         canceledLabel.appendChild(document.createTextNode(' Показывать отмененные'));
-        chk.addEventListener('change', ()=>{ SHOW_CANCELED = chk.checked; if(window.calendar) window.calendar.refetchEvents(); });
+        chk.addEventListener('change', ()=>{ SHOW_CANCELED = chk.checked; if(window.calendar) window.calendar.refetchEvents(); if(window.syncPrintLegend) window.syncPrintLegend(); });
         canceledWrap.appendChild(canceledLabel);
         cont.appendChild(canceledWrap);
         // Чекбоксы для фильтрации по значениям
@@ -275,6 +280,7 @@
               if (e.target.checked) state.add(v.id); else state.delete(v.id);
               window.calendar.refetchEvents();
               if(window.syncFiltersUI) window.syncFiltersUI();
+              if(window.syncPrintLegend) window.syncPrintLegend();
             });
             box.appendChild(item);
           }
@@ -301,6 +307,18 @@
           items.appendChild(item);
         }
         container.appendChild(items);
+      }
+      function renderPrintFiltersSelected(container, groups, selected){
+        container.textContent = '';
+        const segs = [];
+        for(const g of groups){
+          const vals = g.values.filter(v => selected.has(v.id)).map(v => v.value);
+          if(vals.length){ segs.push(`${g.tag.name}: ${vals.join(', ')}`); }
+        }
+        if (SHOW_CANCELED) {
+          segs.push('включая отмененные');
+        }
+        if(segs.length){ container.textContent = `Фильтры: ${segs.join(' | ')}`; }
       }
 
       // МОДАЛ СОБЫТИЯ
@@ -484,6 +502,7 @@
         const filtersEl = document.getElementById('filters');
         const filtersDrawerEl = document.getElementById('filtersDrawerContent');
         const printLegendEl = document.getElementById('printLegend');
+        const printFiltersEl = document.getElementById('printFiltersSelected');
         SELECTED = new Set();
         await loadTagsWithValues();
         if (!window.highlightTagId && TAG_GROUPS.length) {
@@ -496,12 +515,16 @@
         };
         window.syncFiltersUI();
 
-        // Синхронизация печатной легенды по текущему тегу подсветки
+        // Синхронизация печатной легенды и списка выбранных фильтров
         window.syncPrintLegend = ()=>{
-          if(!printLegendEl) return;
-          const hlId = window.highlightTagId;
-          const grp = TAG_GROUPS.find(g => g.tag.id === hlId) || TAG_GROUPS[0] || null;
-          renderPrintLegend(printLegendEl, grp);
+          if(printLegendEl){
+            const hlId = window.highlightTagId;
+            const grp = TAG_GROUPS.find(g => g.tag.id === hlId) || TAG_GROUPS[0] || null;
+            renderPrintLegend(printLegendEl, grp);
+          }
+          if(printFiltersEl){
+            renderPrintFiltersSelected(printFiltersEl, TAG_GROUPS, SELECTED);
+          }
         };
         window.syncPrintLegend();
 
