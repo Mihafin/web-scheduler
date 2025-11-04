@@ -64,7 +64,6 @@
         <div id="filters" class="filters"></div>
         <div id="actionsRow" class="row" style="margin-top: 8px;">
           <button id="gen" class="btn">Сгенерировать</button>
-          <button id="print" class="btn secondary">Печать PDF</button>
         </div>
       </div>
       <div id="printInfo" class="print-info"></div>
@@ -203,7 +202,7 @@
         const selected = Array.from(SELECTED_VALUE_IDS);
         let text = '';
         if(selected.length === 0){
-          text = 'Значения: все';
+          text = 'Фильтр: все';
         } else {
           // Сгруппировать выбранные значения по тегу и вывести: «Тег: v1, v2; Тег2: ...»
           const byTag = new Map();
@@ -218,14 +217,13 @@
           for(const [tagId, vals] of byTag.entries()){
             segs.push(`${tagIdToName.get(tagId) || 'Тег'}: ${vals.join(', ')}`);
           }
-          text = `Значения: ${segs.join('; ')}`;
+          text = `Фильтр: ${segs.join('; ')}`;
         }
         const canceledSeg = SHOW_CANCELED ? 'включая отмененные' : 'без отмененных';
         infoEl.textContent = `${text} | ${canceledSeg}`;
       }
 
       document.getElementById('gen').addEventListener('click', generate);
-      document.getElementById('print').addEventListener('click', ()=> window.print());
       document.getElementById('thisWeek').addEventListener('click', (e)=>{
         e.preventDefault();
         const now = new Date();
