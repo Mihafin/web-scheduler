@@ -562,14 +562,14 @@
                   }
                   for(const ev of events){
                     if(ev.extendedProps.isCanceled){
-                      ev.backgroundColor = '#9ca3af'; ev.borderColor = '#9ca3af'; ev.textColor = '#fff';
+                      ev.backgroundColor = '#9ca3af'; ev.borderColor = '#9ca3af'; ev.textColor = '#000';
                       continue;
                     }
                     const tvIds = ev.extendedProps.tagValueIds || [];
                     let chosenColor = null;
                     for(const id of tvIds){ if(tvColorMap.has(id)){ chosenColor = tvColorMap.get(id); break; } }
                     const color = chosenColor || '#9ca3af';
-                    ev.backgroundColor = color; ev.borderColor = color; ev.textColor = '#fff';
+                    ev.backgroundColor = color; ev.borderColor = color; ev.textColor = '#000';
                   }
                 }
                 success(events);
