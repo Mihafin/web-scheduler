@@ -23,7 +23,7 @@
       .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
       input[type="date"] { padding: 6px 8px; }
       @media print {
-        header, .panel .controls, .panel .tags, .panel .muted { display: none !important; }
+        header, .panel .controls, .panel .tags, .panel .muted, .panel #filters, .panel #filtersHeader, .panel #actionsRow { display: none !important; }
         body { background: #fff; }
         .report { border: 0; padding: 0; }
       }
@@ -52,7 +52,7 @@
         <div class="muted" style="margin-top:8px;">Выберите теги, значения которых нужно выводить в каждой строке события</div>
         <div id="tags" class="tags" style="margin-top:8px;"></div>
         <hr style="margin:12px 0; border:none; border-top:1px solid #e5e7eb;"/>
-        <div class="row" style="align-items: baseline; gap: 12px; margin-bottom: 6px;">
+        <div id="filtersHeader" class="row" style="align-items: baseline; gap: 12px; margin-bottom: 6px;">
           <strong>Фильтры событий</strong>
           <label class="row" style="gap:6px;">
             <input id="showCanceled" type="checkbox"/>
@@ -60,7 +60,7 @@
           </label>
         </div>
         <div id="filters" class="filters"></div>
-        <div class="row" style="margin-top: 8px;">
+        <div id="actionsRow" class="row" style="margin-top: 8px;">
           <button id="gen" class="btn">Сгенерировать</button>
           <button id="print" class="btn secondary">Печать PDF</button>
         </div>
