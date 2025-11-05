@@ -52,6 +52,7 @@ def list_schedules(
                 dateTo=s.date_to,
                 tagValueIds=[tv.id for tv in s.tag_values],
                 isCanceled=s.is_canceled,
+                contact=s.contact,
             )
         )
     return result
@@ -61,7 +62,7 @@ def list_schedules(
 def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db), user: str | None = Depends(get_remote_user)):
     if data.dateTo < data.dateFrom:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
-    sched = models.Schedule(title=data.title, date_from=data.dateFrom, date_to=data.dateTo)
+    sched = models.Schedule(title=data.title, date_from=data.dateFrom, date_to=data.dateTo, contact=data.contact)
     selected_tag_values: list[models.TagValue] = []
     if data.tagValueIds:
         selected_tag_values = db.query(models.TagValue).filter(models.TagValue.id.in_(data.tagValueIds)).all()
@@ -125,6 +126,7 @@ def create_schedule(data: schemas.ScheduleCreate, db: Session = Depends(get_db),
         dateTo=sched.date_to,
         tagValueIds=[tv.id for tv in sched.tag_values],
         isCanceled=sched.is_canceled,
+        contact=sched.contact,
     )
 
 
@@ -139,11 +141,13 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     old_to = sched.date_to
     old_is_canceled = sched.is_canceled
     old_tag_ids = [tv.id for tv in sched.tag_values]
+    old_contact = sched.contact
     # Сформируем итоговые значения после обновления (не применяя к БД до валидаций)
     new_title = data.title if data.title is not None else sched.title
     new_from = data.dateFrom if data.dateFrom is not None else sched.date_from
     new_to = data.dateTo if data.dateTo is not None else sched.date_to
     new_is_canceled = data.isCanceled if data.isCanceled is not None else sched.is_canceled
+    new_contact = data.contact if data.contact is not None else sched.contact
     if new_to < new_from:
         raise HTTPException(status_code=400, detail="dateTo must be >= dateFrom")
     if data.tagValueIds is not None:
@@ -189,6 +193,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     sched.date_to = new_to
     sched.tag_values = new_tag_values
     sched.is_canceled = new_is_canceled
+    sched.contact = new_contact
     db.commit()
     db.refresh(sched)
     # Сборка только изменившихся полей
@@ -201,6 +206,8 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
         changes.append(f"date_to: {old_to} -> {new_to}")
     if new_is_canceled != old_is_canceled:
         changes.append(f"is_canceled: {old_is_canceled} -> {new_is_canceled}")
+    if new_contact != old_contact:
+        changes.append(f"contact: {old_contact} -> {new_contact}")
     new_tag_ids = [tv.id for tv in sched.tag_values]
     if sorted(new_tag_ids) != sorted(old_tag_ids):
         changes.append(f"tag_value_ids: {sorted(old_tag_ids)} -> {sorted(new_tag_ids)}")
@@ -216,6 +223,7 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
         dateTo=sched.date_to,
         tagValueIds=[tv.id for tv in sched.tag_values],
         isCanceled=sched.is_canceled,
+        contact=sched.contact,
     )
 
 

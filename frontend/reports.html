@@ -170,8 +170,9 @@
               if(value) valuesFlat.push(value);
             }
             const tail = valuesFlat.length ? `, ${valuesFlat.join(', ')}` : '';
+            const contact = ev.contact ? ` (${ev.contact})` : '';
             const line = document.createElement('div'); line.className = 'event';
-            line.textContent = `- ${from}-${to}: ${ev.title}${tail}`;
+            line.textContent = `- ${from}-${to}: ${ev.title}${contact}${tail}`;
             list.appendChild(line);
           }
           wrap.appendChild(list);

@@ -171,6 +171,10 @@
             <label class="muted">Окончание</label>
             <input id="evEnd" type="datetime-local" style="width:100%"/>
           </div>
+          <div>
+            <label class="muted">Контакт</label>
+            <input id="evContact" type="text" placeholder="Инста, телефон или email" style="width:100%"/>
+          </div>
           <div style="grid-column: 1 / -1;">
             <label class="muted">Значения тегов</label>
             <div id="evTagGroups" class="tag-groups"></div>
@@ -362,6 +366,7 @@
         const groupsEl = document.getElementById('evTagGroups');
         const copySelect = document.getElementById('evCopySelect');
         const canceledChk = document.getElementById('evCanceled');
+        const contactEl = document.getElementById('evContact');
         const delBtn = document.getElementById('evDeleteBtn');
         const saveBtn = document.getElementById('evSaveBtn');
         const cancelBtn = document.getElementById('evCancelBtn');
@@ -376,6 +381,7 @@
         modalTitle.textContent = mode === 'create' ? 'Создание события' : 'Редактирование события';
         delBtn.style.display = mode === 'edit' ? 'inline-block' : 'none';
         canceledChk.checked = !!data.isCanceled;
+        contactEl.value = data.contact || '';
 
         const collectSelected = ()=> Array.from(groupsEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>Number(i.value));
 
@@ -385,7 +391,8 @@
             dateFrom: localInputToIso(startEl.value),
             dateTo: localInputToIso(endEl.value),
             tagValueIds: collectSelected(),
-            isCanceled: !!canceledChk.checked
+            isCanceled: !!canceledChk.checked,
+            contact: contactEl.value.trim() || null
           };
           if(!payload.title){ alert('Введите название'); return; }
           try{
@@ -549,7 +556,7 @@
                 params.set('to', info.endStr);
                 if (SELECTED.size) params.set('tag_value_ids', Array.from(SELECTED).join(','));
                 const data = await fetchJSON(`${API}/schedules?${params}`);
-                let events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds, isCanceled: !!e.isCanceled } }));
+                let events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds, isCanceled: !!e.isCanceled, contact: e.contact || null } }));
                 if(!SHOW_CANCELED){ events = events.filter(ev => !ev.extendedProps.isCanceled); }
                 // Раскраска по выбранному тегу: цвет берём у значения; иначе серый
                 const hlTagId = window.highlightTagId || null;
@@ -603,7 +610,7 @@
           },
           eventClick: async (info) => {
             const ev = info.event;
-            openEventModal('edit', { id: Number(ev.id), title: ev.title, startIso: ev.start.toISOString(), endIso: (ev.end?.toISOString() || ev.start.toISOString()), tagValueIds: ev.extendedProps?.tagValueIds || [], isCanceled: !!ev.extendedProps?.isCanceled });
+            openEventModal('edit', { id: Number(ev.id), title: ev.title, startIso: ev.start.toISOString(), endIso: (ev.end?.toISOString() || ev.start.toISOString()), tagValueIds: ev.extendedProps?.tagValueIds || [], isCanceled: !!ev.extendedProps?.isCanceled, contact: ev.extendedProps?.contact || '' });
           }
         });
         calendar.render();

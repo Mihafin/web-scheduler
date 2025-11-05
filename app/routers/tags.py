@@ -35,6 +35,12 @@ def _create_tables():
             conn.execute(text("ALTER TABLE schedules ADD COLUMN is_canceled BOOLEAN NOT NULL DEFAULT 0"))
     except Exception:
         pass
+    # Мягкая миграция: добавить поле contact для расписаний
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE schedules ADD COLUMN contact TEXT NULL"))
+    except Exception:
+        pass
 
 
 @router.get("", response_model=list[schemas.TagOut])
