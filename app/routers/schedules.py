@@ -200,6 +200,8 @@ def update_schedule(id: int, data: schemas.ScheduleUpdate, db: Session = Depends
     changes: list[str] = []
     if new_title != old_title:
         changes.append(f"title: {old_title} -> {new_title}")
+    else:
+        changes.append(f"title: {old_title}") # просто для того что бы понять в каком событии были изменения
     if new_from != old_from:
         changes.append(f"date_from: {old_from} -> {new_from}")
     if new_to != old_to:
