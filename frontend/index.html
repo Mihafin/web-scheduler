@@ -383,6 +383,12 @@
         canceledChk.checked = !!data.isCanceled;
         contactEl.value = data.contact || '';
 
+        // Показ/скрытие элементов, актуальных только для редактирования
+        const cancelWrap = canceledChk?.parentElement; // label с чекбоксом Отмена
+        if (cancelWrap) cancelWrap.style.display = (mode === 'edit') ? 'inline-block' : 'none';
+        const copyWrap = copySelect?.parentElement; // строка с селектом "Скопировать..."
+        if (copyWrap) copyWrap.style.visibility = (mode === 'edit') ? 'visible' : 'hidden';
+
         const collectSelected = ()=> Array.from(groupsEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>Number(i.value));
 
         const onSave = async ()=>{
