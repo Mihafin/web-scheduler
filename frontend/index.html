@@ -493,6 +493,7 @@
                 dateFrom: dstStart.toISOString(),
                 dateTo: dstEnd.toISOString(),
                 tagValueIds: selectedIdsArr,
+                contact: (contactEl.value || '').trim() || null
               };
               await fetchJSON(`${API}/schedules`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
             }
