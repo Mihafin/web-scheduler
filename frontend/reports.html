@@ -70,19 +70,8 @@
       <div id="report" class="report"></div>
     </main>
 
+    <script src="/common.js"></script>
     <script>
-      const API = '/api';
-
-      async function fetchJSON(url){ const r = await fetch(url); if(!r.ok) throw new Error(await r.text()); return r.json(); }
-
-      const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-      function pad(n){ return String(n).padStart(2,'0'); }
-      function fmtDay(d){ return `${WEEKDAYS[d.getDay()]}. ${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`; }
-      function parseISO(s){ return new Date(s); }
-      function startOfDayLocalISO(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0); return x.toISOString(); }
-      function nextDayStartLocalISO(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1, 0,0,0,0); return x.toISOString(); }
-      function hhmmLocal(iso){ const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-
       let TAG_GROUPS = [];
       let SELECTED_TAG_IDS = new Set(); // какие теги выводить значениями в отчёте
       let SELECTED_VALUE_IDS = new Set(); // фильтр по значениям тегов
@@ -132,7 +121,7 @@
       }
 
       function groupByDay(sortedEvents){
-        const groups = new Map(); // key ISO day (local start)
+        const groups = new Map();
         for(const ev of sortedEvents){
           const d = new Date(ev.dateFrom);
           const key = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0).toISOString();
@@ -145,7 +134,6 @@
       function renderReport(data){
         const mount = document.getElementById('report');
         mount.innerHTML = '';
-        // sort by time_from then id
         data.sort((a,b)=>{
           const ta = new Date(a.dateFrom).getTime();
           const tb = new Date(b.dateFrom).getTime();
@@ -161,7 +149,6 @@
           const list = document.createElement('div');
           for(const ev of groups.get(dayIso)){
             const from = hhmmLocal(ev.dateFrom); const to = hhmmLocal(ev.dateTo);
-            // собрать список значений выбранных тегов (без названий тегов)
             const valuesFlat = [];
             for(const tvId of ev.tagValueIds){
               const tagId = tagValueIdToTagId.get(tvId);
@@ -187,7 +174,7 @@
         const fd = new Date(f); const td = new Date(t);
         if(td < fd){ alert('Дата По не может быть меньше даты С'); return; }
         const fromIso = startOfDayLocalISO(fd);
-        const toIso = nextDayStartLocalISO(td); // полуоткрытый интервал
+        const toIso = nextDayStartLocalISO(td);
         const params = new URLSearchParams();
         params.set('from', fromIso); params.set('to', toIso);
         if(SELECTED_VALUE_IDS.size){ params.set('tag_value_ids', Array.from(SELECTED_VALUE_IDS).join(',')); }
@@ -205,7 +192,6 @@
         if(selected.length === 0){
           text = 'Фильтр: все';
         } else {
-          // Сгруппировать выбранные значения по тегу и вывести: «Тег: v1, v2; Тег2: ...»
           const byTag = new Map();
           for(const id of selected){
             const tagId = tagValueIdToTagId.get(id);
@@ -227,39 +213,29 @@
       document.getElementById('gen').addEventListener('click', generate);
       document.getElementById('thisWeek').addEventListener('click', (e)=>{
         e.preventDefault();
-        const now = new Date();
-        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-        const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-        const fromInput = document.getElementById('fromDate');
-        const toInput = document.getElementById('toDate');
-        fromInput.value = `${monday.getFullYear()}-${pad(monday.getMonth()+1)}-${pad(monday.getDate())}`;
-        toInput.value = `${sunday.getFullYear()}-${pad(sunday.getMonth()+1)}-${pad(sunday.getDate())}`;
+        const monday = getMondayOfWeek();
+        const sunday = getSundayOfWeek(monday);
+        document.getElementById('fromDate').value = formatDateInput(monday);
+        document.getElementById('toDate').value = formatDateInput(sunday);
       });
       document.getElementById('nextWeek').addEventListener('click', (e)=>{
         e.preventDefault();
         const now = new Date();
-        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7) + 7);
-        const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-        const fromInput = document.getElementById('fromDate');
-        const toInput = document.getElementById('toDate');
-        fromInput.value = `${monday.getFullYear()}-${pad(monday.getMonth()+1)}-${pad(monday.getDate())}`;
-        toInput.value = `${sunday.getFullYear()}-${pad(sunday.getMonth()+1)}-${pad(sunday.getDate())}`;
+        const monday = getMondayOfWeek(now);
+        monday.setDate(monday.getDate() + 7);
+        const sunday = getSundayOfWeek(monday);
+        document.getElementById('fromDate').value = formatDateInput(monday);
+        document.getElementById('toDate').value = formatDateInput(sunday);
       });
 
       // Инициализация
       (async () => {
-        // Подставить текущую неделю по умолчанию
-        const now = new Date();
-        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-        const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-        const fromInput = document.getElementById('fromDate');
-        const toInput = document.getElementById('toDate');
-        fromInput.value = `${monday.getFullYear()}-${pad(monday.getMonth()+1)}-${pad(monday.getDate())}`;
-        toInput.value = `${sunday.getFullYear()}-${pad(sunday.getMonth()+1)}-${pad(sunday.getDate())}`;
+        const monday = getMondayOfWeek();
+        const sunday = getSundayOfWeek(monday);
+        document.getElementById('fromDate').value = formatDateInput(monday);
+        document.getElementById('toDate').value = formatDateInput(sunday);
         await loadTags();
       })().catch(console.error);
     </script>
   </body>
-  </html>
-
-
+</html>

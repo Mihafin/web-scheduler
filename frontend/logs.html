@@ -50,10 +50,21 @@
 
     </main>
 
+    <script src="/common.js"></script>
     <script>
+        function formatLocal(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d)) return escapeHtml(iso);
+            return d.toLocaleString(undefined, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+        }
+
         async function loadLogs() {
             const days = Number(document.getElementById('days').value) || 2;
-            const res = await fetch(`/api/audit?days=${encodeURIComponent(days)}`);
+            const res = await fetch(`${API}/audit?days=${encodeURIComponent(days)}`);
             if (!res.ok) {
                 alert('Ошибка загрузки лога');
                 return;
@@ -75,26 +86,6 @@
             }
         }
 
-        function escapeHtml(str) {
-            return String(str)
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
-        }
-
-        function formatLocal(iso) {
-            if (!iso) return '';
-            const d = new Date(iso);
-            if (isNaN(d)) return escapeHtml(iso);
-            // Localized date & time with seconds
-            return d.toLocaleString(undefined, {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit'
-            });
-        }
-
         document.getElementById('reload').addEventListener('click', loadLogs);
         loadLogs();
     </script>
@@ -103,5 +94,3 @@
   This page lists audit entries recorded by the backend. Nginx sets X-Remote-User.
 -->
 </html>
-
-

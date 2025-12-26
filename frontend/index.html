@@ -193,49 +193,12 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <script src="/common.js"></script>
     <script>
-      const API = '/api';
-
-      async function fetchJSON(url, opts) {
-        const res = await fetch(url, opts);
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
-      }
-
-      // Утилита: форматировать ISO в локальное время без секунд: YYYY-MM-DD HH:MM
-      function formatLocalNoSeconds(iso){
-        const d = new Date(iso);
-        const pad = (n)=> String(n).padStart(2,'0');
-        const yyyy = d.getFullYear();
-        const mm = pad(d.getMonth()+1);
-        const dd = pad(d.getDate());
-        const hh = pad(d.getHours());
-        const mi = pad(d.getMinutes());
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-      }
-      // Заменить все ISO-строки в сообщении об ошибке на локальный формат без секунд
-      function beautifyErrorMessage(msg){
-        const isoRe = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
-        return String(msg).replace(isoRe, (m)=>{
-          try { return formatLocalNoSeconds(m); } catch(_) { return m; }
-        });
-      }
-
       // Глобальные состояния
       let TAG_GROUPS = [];
       let SELECTED = new Set();
       let SHOW_CANCELED = true;
-
-      async function loadTagsWithValues() {
-        const tags = await fetchJSON(`${API}/tags`);
-        const result = [];
-        for (const t of tags) {
-          const values = await fetchJSON(`${API}/tags/${t.id}/values`);
-          result.push({ tag: t, values });
-        }
-        TAG_GROUPS = result;
-        return result;
-      }
 
       function renderFilters(cont, groups, state) {
         cont.innerHTML = '';
@@ -296,8 +259,6 @@
         }
       }
 
-      // Управление тегами вынесено на /tags.html. На главной оставлены только фильтры.
-
       function renderPrintLegend(container, group){
         container.innerHTML = '';
         if(!group) return;
@@ -316,6 +277,7 @@
         }
         container.appendChild(items);
       }
+
       function renderPrintFiltersSelected(container, groups, selected){
         container.textContent = '';
         const segs = [];
@@ -327,22 +289,6 @@
           segs.push('включая отмененные');
         }
         if(segs.length){ container.textContent = `Фильтры: ${segs.join(' | ')}`; }
-      }
-
-      // МОДАЛ СОБЫТИЯ
-      function isoToLocalInputValue(iso){
-        const d = new Date(iso);
-        const pad = (n)=> String(n).padStart(2,'0');
-        const yyyy = d.getFullYear();
-        const mm = pad(d.getMonth()+1);
-        const dd = pad(d.getDate());
-        const hh = pad(d.getHours());
-        const mi = pad(d.getMinutes());
-        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-      }
-      function localInputToIso(val){
-        const d = new Date(val);
-        return d.toISOString();
       }
 
       function renderTagCheckboxes(container, selectedIds){
@@ -388,9 +334,9 @@
         contactEl.value = data.contact || '';
 
         // Показ/скрытие элементов, актуальных только для редактирования
-        const cancelWrap = canceledChk?.parentElement; // label с чекбоксом Отмена
+        const cancelWrap = canceledChk?.parentElement;
         if (cancelWrap) cancelWrap.style.display = (mode === 'edit') ? 'inline-block' : 'none';
-        const copyWrap = copySelect?.parentElement; // строка с селектом "Скопировать..."
+        const copyWrap = copySelect?.parentElement;
         if (copyWrap) copyWrap.style.visibility = (mode === 'edit') ? 'visible' : 'hidden';
 
         const collectSelected = ()=> Array.from(groupsEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>Number(i.value));
@@ -415,7 +361,6 @@
             }
             closeEventModal();
           } catch (e) {
-            // Сервер возвращает detail с текстом ошибки; попытаемся извлечь его
             let msg = 'Не удалось сохранить событие';
             try { const j = JSON.parse(String(e.message || '')); if(j?.detail) msg = j.detail; } catch(_) {}
             alert(beautifyErrorMessage(msg));
@@ -440,7 +385,6 @@
         const onCopyChange = async ()=>{
           const val = copySelect.value;
           if(!val) return;
-          // Множество смещений по дням: 1 -> [1], 7 -> [7], 14 -> [7,14], 21 -> [7,14,21], 28 -> [7,14,21,28]
           const preset = {
             '1d': [1],
             '7d': [7],
@@ -464,7 +408,6 @@
           }).filter(x => x.valueIds.length > 0);
 
           try {
-            // Проверяем все смещения: если для любого смещения найдены конфликты — отменяем операцию
             for (const d of offsets) {
               const dstStart = new Date(srcStart.getTime()); dstStart.setDate(dstStart.getDate() + d);
               const dstEnd = new Date(srcEnd.getTime()); dstEnd.setDate(dstEnd.getDate() + d);
@@ -482,7 +425,6 @@
               }
             }
 
-            // Если все свободно — создаём все события
             const titleOut = (titleEl.value || '').trim() || (data.title || '');
             if(!titleOut){ alert('Введите название'); return; }
             for (const d of offsets) {
@@ -522,7 +464,7 @@
         const printLegendEl = document.getElementById('printLegend');
         const printFiltersEl = document.getElementById('printFiltersSelected');
         SELECTED = new Set();
-        await loadTagsWithValues();
+        TAG_GROUPS = await loadTagsWithValues();
         if (!window.highlightTagId && TAG_GROUPS.length) {
           window.highlightTagId = TAG_GROUPS[0].tag.id;
         }
@@ -571,7 +513,7 @@
                 const data = await fetchJSON(`${API}/schedules?${params}`);
                 let events = data.map(e => ({ id: String(e.id), title: e.title, start: e.dateFrom, end: e.dateTo, extendedProps: { tagValueIds: e.tagValueIds, isCanceled: !!e.isCanceled, contact: e.contact || null } }));
                 if(!SHOW_CANCELED){ events = events.filter(ev => !ev.extendedProps.isCanceled); }
-                // Раскраска по выбранному тегу: цвет берём у значения; иначе серый
+                // Раскраска по выбранному тегу
                 const hlTagId = window.highlightTagId || null;
                 if(hlTagId){
                   const tvColorMap = new Map();
@@ -646,7 +588,6 @@
         openFiltersBtn.addEventListener('click', ()=> drawer.classList.add('open'));
         drawerClose.addEventListener('click', ()=> drawer.classList.remove('open'));
         drawer.addEventListener('click', (e)=>{ if(e.target === drawer) drawer.classList.remove('open'); });
-        // При начале работы синхронизируем фильтры в drawer
         if(window.syncFiltersUI) window.syncFiltersUI();
 
         // Навигация и переключатели представлений на мобильной панели
@@ -665,6 +606,4 @@
       main().catch(err => console.error(err));
     </script>
   </body>
-  </html>
-
-
+</html>

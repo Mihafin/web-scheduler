@@ -45,32 +45,8 @@
       <div id="tagsPanel"></div>
     </main>
 
+    <script src="/common.js"></script>
     <script>
-      const API = '/api';
-
-      async function fetchJSON(url, opts){
-        const r = await fetch(url, opts);
-        if(!r.ok){ throw new Error(await r.text()); }
-        return r.json();
-      }
-
-      async function createTag(name, required, unique_resource){ return fetchJSON(`${API}/tags`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, required, unique_resource }) }); }
-      async function updateTag(id, payload){ return fetchJSON(`${API}/tags/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); }
-      async function deleteTag(id){ const r = await fetch(`${API}/tags/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
-      async function createTagValue(tagId, value){ return fetchJSON(`${API}/tags/${tagId}/values`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
-      async function updateTagValue(id, value){ return fetchJSON(`${API}/tags/values/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }); }
-      async function deleteTagValue(id){ const r = await fetch(`${API}/tags/values/${id}`, { method:'DELETE' }); if(!r.ok) throw new Error(await r.text()); }
-
-      async function loadTagsWithValues(){
-        const tags = await fetchJSON(`${API}/tags`);
-        const result = [];
-        for(const t of tags){
-          const values = await fetchJSON(`${API}/tags/${t.id}/values`);
-          result.push({ tag: t, values });
-        }
-        return result;
-      }
-
       function renderTagsPanel(container, groups){
         container.innerHTML = '';
         for(const g of groups){
@@ -110,12 +86,12 @@
             const vb1 = document.createElement('button'); vb1.textContent = '✎';
             const vb2 = document.createElement('button'); vb2.textContent = '🗑';
             color.addEventListener('change', async ()=>{
-              await fetchJSON(`${API}/tags/values/${v.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ value: v.value, color: color.value }) });
+              await updateTagValue(v.id, { value: v.value, color: color.value });
               await refresh();
             });
             vb1.addEventListener('click', async ()=>{
               const nv = prompt('Новое значение тега:', v.value);
-              if(nv && nv !== v.value){ await fetchJSON(`${API}/tags/values/${v.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ value: nv, color: color.value }) }); await refresh(); }
+              if(nv && nv !== v.value){ await updateTagValue(v.id, { value: nv, color: color.value }); await refresh(); }
             });
             vb2.addEventListener('click', async ()=>{
               if(confirm('Удалить значение тега?')){ await deleteTagValue(v.id); await refresh(); }
@@ -154,7 +130,7 @@
       }
 
       async function main(){
-        // Добавим флажки рядом с полем ввода для нового тега, если их ещё нет
+        // Добавим флажки рядом с полем ввода для нового тега
         const addRow = document.querySelector('main .row');
         if(addRow && !document.getElementById('newTagRequired')){
           const reqLabel = document.createElement('label'); reqLabel.className='muted';
@@ -183,6 +159,4 @@
       main().catch(err => console.error(err));
     </script>
   </body>
-  </html>
-
-
+</html>
