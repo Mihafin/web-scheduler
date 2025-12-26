@@ -586,6 +586,18 @@
 
         (async () => {
             await Promise.all([loadClients(), loadSubscriptionTypes()]);
+            
+            // Проверяем URL на наличие client_id
+            const urlParams = new URLSearchParams(window.location.search);
+            const clientIdFromUrl = urlParams.get('client_id');
+            if (clientIdFromUrl) {
+                const clientId = Number(clientIdFromUrl);
+                if (clients.find(c => c.id === clientId)) {
+                    selectedClientId = clientId;
+                    document.getElementById('clientSelect').value = clientId;
+                    loadClientBalance(clientId);
+                }
+            }
         })().catch(console.error);
     </script>
 </body>

@@ -24,6 +24,7 @@
         .actions-cell { display: flex; gap: 6px; }
         .actions-cell button { padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
         .edit-btn { background: #f3f4f6; border: 1px solid #e5e7eb; }
+        .subs-btn { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
         .delete-btn { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
         /* Modal */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
@@ -35,6 +36,7 @@
         .modal .form-group input { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; }
         .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
         .empty { text-align: center; padding: 24px; color: #6b7280; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -58,7 +60,7 @@
                 <tr>
                     <th style="width: 60px;">ID</th>
                     <th>Имя</th>
-                    <th style="width: 140px;">Действия</th>
+                    <th style="width: 220px;">Действия</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -121,12 +123,20 @@
                     <td>${client.id}</td>
                     <td>${escapeHtml(client.name)}</td>
                     <td class="actions-cell">
+                        <button class="subs-btn" data-id="${client.id}">Абонементы</button>
                         <button class="edit-btn" data-id="${client.id}" data-name="${escapeHtml(client.name)}">Изменить</button>
                         <button class="delete-btn" data-id="${client.id}">Удалить</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             }
+            
+            // Обработчики для кнопок абонементов
+            tbody.querySelectorAll('.subs-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    window.location.href = `/subscriptions.html?client_id=${btn.dataset.id}`;
+                });
+            });
             
             // Обработчики для кнопок редактирования
             tbody.querySelectorAll('.edit-btn').forEach(btn => {
