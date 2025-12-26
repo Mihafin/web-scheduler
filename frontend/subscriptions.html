@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Абонементы — Web Scheduler</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; }
+        header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+        .row { display: flex; align-items: center; gap: 8px; }
+        .muted { color: #6b7280; font-size: 12px; }
+        main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        
+        .client-select-wrap { margin-bottom: 16px; }
+        .client-select-wrap label { font-weight: 600; margin-right: 8px; }
+        .client-select-wrap select { padding: 8px 12px; font-size: 16px; border: 1px solid #e5e7eb; border-radius: 6px; min-width: 250px; }
+        .client-select-wrap input { padding: 8px 12px; font-size: 14px; border: 1px solid #e5e7eb; border-radius: 6px; width: 200px; }
+        
+        .balance-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center; }
+        .balance-card .balance-number { font-size: 64px; font-weight: 700; line-height: 1; }
+        .balance-card .balance-label { font-size: 14px; opacity: 0.9; margin-top: 4px; }
+        .balance-card .balance-details { display: flex; justify-content: center; gap: 32px; margin-top: 16px; font-size: 14px; }
+        .balance-card .balance-details span { opacity: 0.85; }
+        .balance-negative { background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%); }
+        
+        .actions-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .btn { padding: 8px 14px; border: 1px solid #e5e7eb; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn.secondary { background: #fff; color: #111827; }
+        .btn.success { background: #059669; border-color: #059669; }
+        .btn.warning { background: #d97706; border-color: #d97706; }
+        
+        .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 768px) { .lists { grid-template-columns: 1fr; } }
+        
+        .list-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+        .list-card h4 { margin: 0; padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+        .list-card ul { list-style: none; margin: 0; padding: 0; max-height: 400px; overflow-y: auto; }
+        .list-card li { padding: 10px 16px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .list-card li:last-child { border-bottom: 0; }
+        .list-card li:hover { background: #f9fafb; }
+        .list-card .item-main { flex: 1; }
+        .list-card .item-date { font-size: 13px; color: #374151; }
+        .list-card .item-comment { font-size: 12px; color: #6b7280; margin-top: 2px; }
+        .list-card .item-lessons { font-weight: 600; color: #059669; }
+        .list-card .item-expired { color: #b91c1c; font-size: 11px; }
+        .list-card .delete-btn { background: transparent; border: none; color: #b91c1c; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+        .list-card .empty { padding: 24px; text-align: center; color: #6b7280; }
+        
+        /* Modal */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-backdrop.hidden { display: none !important; }
+        .modal { background: #fff; border-radius: 8px; padding: 20px; width: 420px; max-width: calc(100% - 24px); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+        .modal h3 { margin: 0 0 16px 0; }
+        .modal .form-group { margin-bottom: 12px; }
+        .modal .form-group label { display: block; margin-bottom: 4px; font-size: 14px; color: #374151; }
+        .modal .form-group input, .modal .form-group select, .modal .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        .modal .form-group textarea { resize: vertical; min-height: 60px; }
+        .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        
+        .no-client { text-align: center; padding: 48px 24px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="row">
+            <a href="/" style="text-decoration:none;">← На главную</a>
+            <h3 style="margin:0;">Абонементы</h3>
+        </div>
+        <a href="/subscription_types.html" class="muted">типы абонементов</a>
+    </header>
+
+    <main>
+        <div class="client-select-wrap row">
+            <label for="clientSearch">Клиент:</label>
+            <input id="clientSearch" type="text" placeholder="Поиск клиента..." />
+            <select id="clientSelect">
+                <option value="">— Выберите клиента —</option>
+            </select>
+            <button id="addClientBtn" class="btn secondary">+ Клиент</button>
+        </div>
+        
+        <div id="noClientMessage" class="no-client">
+            Выберите клиента для просмотра абонементов
+        </div>
+        
+        <div id="clientContent" style="display: none;">
+            <div id="balanceCard" class="balance-card">
+                <div class="balance-number" id="balanceNumber">0</div>
+                <div class="balance-label">занятий осталось</div>
+                <div class="balance-details">
+                    <span>Куплено: <strong id="totalPurchased">0</strong></span>
+                    <span>Использовано: <strong id="totalSpent">0</strong></span>
+                </div>
+            </div>
+            
+            <div class="actions-bar">
+                <button id="addPurchaseBtn" class="btn success">+ Приход (покупка)</button>
+                <button id="addExpenseBtn" class="btn warning">+ Расход (занятие)</button>
+            </div>
+            
+            <div class="lists">
+                <div class="list-card">
+                    <h4>📥 Покупки (приход)</h4>
+                    <ul id="purchasesList"></ul>
+                </div>
+                <div class="list-card">
+                    <h4>📤 Расходы (занятия)</h4>
+                    <ul id="expensesList"></ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Модалка добавления клиента -->
+    <div id="clientModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3>Новый клиент</h3>
+            <div class="form-group">
+                <label for="newClientName">Имя</label>
+                <input id="newClientName" type="text" placeholder="Введите имя клиента" />
+            </div>
+            <div class="actions">
+                <button id="clientModalCancel" class="btn secondary">Отмена</button>
+                <button id="clientModalSave" class="btn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления покупки -->
+    <div id="purchaseModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3>Новая покупка</h3>
+            <div class="form-group">
+                <label for="purchaseTemplate">Шаблон (тип абонемента)</label>
+                <select id="purchaseTemplate">
+                    <option value="">— Выбрать шаблон —</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="purchaseLessons">Количество занятий</label>
+                <input id="purchaseLessons" type="number" min="1" value="5" />
+            </div>
+            <div class="form-group">
+                <label for="purchaseDate">Дата покупки</label>
+                <input id="purchaseDate" type="date" />
+            </div>
+            <div class="form-group">
+                <label for="purchaseExpiry">Действует до</label>
+                <input id="purchaseExpiry" type="date" />
+            </div>
+            <div class="form-group">
+                <label for="purchaseComment">Комментарий</label>
+                <textarea id="purchaseComment" placeholder="Например: название абонемента, способ оплаты..."></textarea>
+            </div>
+            <div class="actions">
+                <button id="purchaseModalCancel" class="btn secondary">Отмена</button>
+                <button id="purchaseModalSave" class="btn success">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления расхода -->
+    <div id="expenseModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3>Новый расход</h3>
+            <div class="form-group">
+                <label for="expenseDate">Дата</label>
+                <input id="expenseDate" type="date" />
+            </div>
+            <div class="form-group">
+                <label for="expenseComment">Комментарий</label>
+                <textarea id="expenseComment" placeholder="Например: название занятия, тренер..."></textarea>
+            </div>
+            <div class="actions">
+                <button id="expenseModalCancel" class="btn secondary">Отмена</button>
+                <button id="expenseModalSave" class="btn warning">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script>
+        let clients = [];
+        let subscriptionTypes = [];
+        let selectedClientId = null;
+
+        // ============ Утилиты ============
+
+        function formatDate(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+        }
+
+        function isExpired(expiryDateStr) {
+            if (!expiryDateStr) return false;
+            const expiry = new Date(expiryDateStr);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return expiry < today;
+        }
+
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function toDateInputValue(d) {
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+
+        // ============ Загрузка данных ============
+
+        async function loadClients() {
+            try {
+                clients = await fetchJSON(`${API}/clients`);
+                renderClientSelect();
+            } catch (err) {
+                console.error('Ошибка загрузки клиентов:', err);
+            }
+        }
+
+        async function loadSubscriptionTypes() {
+            try {
+                subscriptionTypes = await fetchJSON(`${API}/subscription-types`);
+                renderTemplateSelect();
+            } catch (err) {
+                console.error('Ошибка загрузки типов:', err);
+            }
+        }
+
+        async function loadClientBalance(clientId) {
+            if (!clientId) {
+                document.getElementById('noClientMessage').style.display = 'block';
+                document.getElementById('clientContent').style.display = 'none';
+                return;
+            }
+            
+            try {
+                const data = await fetchJSON(`${API}/subscriptions/balance/${clientId}`);
+                renderBalance(data);
+                document.getElementById('noClientMessage').style.display = 'none';
+                document.getElementById('clientContent').style.display = 'block';
+            } catch (err) {
+                console.error('Ошибка загрузки баланса:', err);
+                alert('Ошибка загрузки данных клиента');
+            }
+        }
+
+        // ============ Рендеринг ============
+
+        function renderClientSelect() {
+            const select = document.getElementById('clientSelect');
+            const searchVal = document.getElementById('clientSearch').value.toLowerCase();
+            
+            select.innerHTML = '<option value="">— Выберите клиента —</option>';
+            
+            const filtered = searchVal 
+                ? clients.filter(c => c.name.toLowerCase().includes(searchVal))
+                : clients;
+            
+            for (const c of filtered) {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                if (c.id === selectedClientId) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+
+        function renderTemplateSelect() {
+            const select = document.getElementById('purchaseTemplate');
+            select.innerHTML = '<option value="">— Выбрать шаблон —</option>';
+            
+            for (const t of subscriptionTypes) {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = `${t.name} (${t.lessonsCount} зан., ${t.durationDays} дн.)`;
+                opt.dataset.lessons = t.lessonsCount;
+                opt.dataset.days = t.durationDays;
+                opt.dataset.name = t.name;
+                select.appendChild(opt);
+            }
+        }
+
+        function renderBalance(data) {
+            document.getElementById('balanceNumber').textContent = data.balance;
+            document.getElementById('totalPurchased').textContent = data.totalPurchased;
+            document.getElementById('totalSpent').textContent = data.totalSpent;
+            
+            const card = document.getElementById('balanceCard');
+            if (data.balance < 0) {
+                card.classList.add('balance-negative');
+            } else {
+                card.classList.remove('balance-negative');
+            }
+            
+            renderPurchases(data.purchases);
+            renderExpenses(data.expenses);
+        }
+
+        function renderPurchases(purchases) {
+            const ul = document.getElementById('purchasesList');
+            ul.innerHTML = '';
+            
+            if (purchases.length === 0) {
+                ul.innerHTML = '<li class="empty">Нет покупок</li>';
+                return;
+            }
+            
+            for (const p of purchases) {
+                const expired = isExpired(p.expiryDate);
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="item-main">
+                        <div class="item-date">${formatDate(p.purchaseDate)} — <span class="item-lessons">+${p.lessonsCount} зан.</span></div>
+                        <div class="item-comment">${escapeHtml(p.comment || '')} ${expired ? '<span class="item-expired">(просрочен)</span>' : `<span class="muted">до ${formatDate(p.expiryDate)}</span>`}</div>
+                    </div>
+                    <button class="delete-btn" data-id="${p.id}" title="Удалить">×</button>
+                `;
+                ul.appendChild(li);
+            }
+            
+            ul.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => deletePurchase(Number(btn.dataset.id)));
+            });
+        }
+
+        function renderExpenses(expenses) {
+            const ul = document.getElementById('expensesList');
+            ul.innerHTML = '';
+            
+            if (expenses.length === 0) {
+                ul.innerHTML = '<li class="empty">Нет расходов</li>';
+                return;
+            }
+            
+            for (const e of expenses) {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="item-main">
+                        <div class="item-date">${formatDate(e.expenseDate)} — <span style="color:#d97706;">−1 зан.</span></div>
+                        <div class="item-comment">${escapeHtml(e.comment || '')}</div>
+                    </div>
+                    <button class="delete-btn" data-id="${e.id}" title="Удалить">×</button>
+                `;
+                ul.appendChild(li);
+            }
+            
+            ul.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => deleteExpense(Number(btn.dataset.id)));
+            });
+        }
+
+        // ============ Модалки ============
+
+        function openClientModal() {
+            document.getElementById('newClientName').value = '';
+            document.getElementById('clientModal').classList.remove('hidden');
+            document.getElementById('newClientName').focus();
+        }
+
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.add('hidden');
+        }
+
+        async function saveNewClient() {
+            const name = document.getElementById('newClientName').value.trim();
+            if (!name) {
+                alert('Введите имя клиента');
+                return;
+            }
+            
+            try {
+                const newClient = await fetchJSON(`${API}/clients`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                closeClientModal();
+                await loadClients();
+                // Выбираем нового клиента
+                selectedClientId = newClient.id;
+                document.getElementById('clientSelect').value = newClient.id;
+                loadClientBalance(newClient.id);
+            } catch (err) {
+                console.error('Ошибка создания клиента:', err);
+                alert('Ошибка создания клиента');
+            }
+        }
+
+        function openPurchaseModal() {
+            if (!selectedClientId) {
+                alert('Сначала выберите клиента');
+                return;
+            }
+            
+            const today = new Date();
+            document.getElementById('purchaseTemplate').value = '';
+            document.getElementById('purchaseLessons').value = 5;
+            document.getElementById('purchaseDate').value = toDateInputValue(today);
+            document.getElementById('purchaseExpiry').value = toDateInputValue(addDays(today, 30));
+            document.getElementById('purchaseComment').value = '';
+            document.getElementById('purchaseModal').classList.remove('hidden');
+        }
+
+        function closePurchaseModal() {
+            document.getElementById('purchaseModal').classList.add('hidden');
+        }
+
+        async function savePurchase() {
+            const lessonsCount = parseInt(document.getElementById('purchaseLessons').value, 10);
+            const purchaseDate = document.getElementById('purchaseDate').value;
+            const expiryDate = document.getElementById('purchaseExpiry').value;
+            const comment = document.getElementById('purchaseComment').value.trim();
+            
+            if (!lessonsCount || lessonsCount < 1) {
+                alert('Укажите количество занятий');
+                return;
+            }
+            if (!purchaseDate) {
+                alert('Укажите дату покупки');
+                return;
+            }
+            if (!expiryDate) {
+                alert('Укажите дату окончания');
+                return;
+            }
+            
+            try {
+                await fetchJSON(`${API}/subscriptions/purchases`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientId: selectedClientId,
+                        lessonsCount,
+                        purchaseDate: new Date(purchaseDate).toISOString(),
+                        expiryDate: new Date(expiryDate).toISOString(),
+                        comment: comment || null
+                    })
+                });
+                closePurchaseModal();
+                loadClientBalance(selectedClientId);
+            } catch (err) {
+                console.error('Ошибка создания покупки:', err);
+                alert('Ошибка создания покупки');
+            }
+        }
+
+        function openExpenseModal() {
+            if (!selectedClientId) {
+                alert('Сначала выберите клиента');
+                return;
+            }
+            
+            const today = new Date();
+            document.getElementById('expenseDate').value = toDateInputValue(today);
+            document.getElementById('expenseComment').value = '';
+            document.getElementById('expenseModal').classList.remove('hidden');
+        }
+
+        function closeExpenseModal() {
+            document.getElementById('expenseModal').classList.add('hidden');
+        }
+
+        async function saveExpense() {
+            const expenseDate = document.getElementById('expenseDate').value;
+            const comment = document.getElementById('expenseComment').value.trim();
+            
+            if (!expenseDate) {
+                alert('Укажите дату');
+                return;
+            }
+            
+            try {
+                await fetchJSON(`${API}/subscriptions/expenses`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientId: selectedClientId,
+                        expenseDate: new Date(expenseDate).toISOString(),
+                        comment: comment || null
+                    })
+                });
+                closeExpenseModal();
+                loadClientBalance(selectedClientId);
+            } catch (err) {
+                console.error('Ошибка создания расхода:', err);
+                alert('Ошибка создания расхода');
+            }
+        }
+
+        async function deletePurchase(id) {
+            if (!confirm('Удалить эту покупку?')) return;
+            
+            try {
+                const res = await fetch(`${API}/subscriptions/purchases/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                loadClientBalance(selectedClientId);
+            } catch (err) {
+                console.error('Ошибка удаления:', err);
+                alert('Ошибка удаления');
+            }
+        }
+
+        async function deleteExpense(id) {
+            if (!confirm('Удалить этот расход?')) return;
+            
+            try {
+                const res = await fetch(`${API}/subscriptions/expenses/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                loadClientBalance(selectedClientId);
+            } catch (err) {
+                console.error('Ошибка удаления:', err);
+                alert('Ошибка удаления');
+            }
+        }
+
+        // ============ Обработчики ============
+
+        document.getElementById('clientSelect').addEventListener('change', (e) => {
+            selectedClientId = e.target.value ? Number(e.target.value) : null;
+            loadClientBalance(selectedClientId);
+        });
+
+        document.getElementById('clientSearch').addEventListener('input', () => {
+            renderClientSelect();
+        });
+
+        document.getElementById('addClientBtn').addEventListener('click', openClientModal);
+        document.getElementById('clientModalCancel').addEventListener('click', closeClientModal);
+        document.getElementById('clientModalSave').addEventListener('click', saveNewClient);
+
+        document.getElementById('addPurchaseBtn').addEventListener('click', openPurchaseModal);
+        document.getElementById('purchaseModalCancel').addEventListener('click', closePurchaseModal);
+        document.getElementById('purchaseModalSave').addEventListener('click', savePurchase);
+
+        document.getElementById('addExpenseBtn').addEventListener('click', openExpenseModal);
+        document.getElementById('expenseModalCancel').addEventListener('click', closeExpenseModal);
+        document.getElementById('expenseModalSave').addEventListener('click', saveExpense);
+
+        // Подстановка значений из шаблона
+        document.getElementById('purchaseTemplate').addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            if (opt && opt.value) {
+                document.getElementById('purchaseLessons').value = opt.dataset.lessons;
+                const purchaseDate = document.getElementById('purchaseDate').value;
+                const baseDate = purchaseDate ? new Date(purchaseDate) : new Date();
+                document.getElementById('purchaseExpiry').value = toDateInputValue(addDays(baseDate, parseInt(opt.dataset.days, 10)));
+                document.getElementById('purchaseComment').value = opt.dataset.name;
+            }
+        });
+
+        // Пересчёт даты окончания при изменении даты покупки
+        document.getElementById('purchaseDate').addEventListener('change', (e) => {
+            const templateOpt = document.getElementById('purchaseTemplate').selectedOptions[0];
+            if (templateOpt && templateOpt.value) {
+                const baseDate = new Date(e.target.value);
+                document.getElementById('purchaseExpiry').value = toDateInputValue(addDays(baseDate, parseInt(templateOpt.dataset.days, 10)));
+            }
+        });
+
+        // Закрытие модалок по клику на фон
+        document.querySelectorAll('.modal-backdrop').forEach(m => {
+            m.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-backdrop')) {
+                    m.classList.add('hidden');
+                }
+            });
+        });
+
+        // Escape для закрытия
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden'));
+            }
+        });
+
+        // Enter для сохранения
+        document.getElementById('newClientName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') saveNewClient();
+        });
+
+        // ============ Инициализация ============
+
+        (async () => {
+            await Promise.all([loadClients(), loadSubscriptionTypes()]);
+        })().catch(console.error);
+    </script>
+</body>
+</html>
+

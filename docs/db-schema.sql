@@ -122,3 +122,62 @@ CREATE TABLE IF NOT EXISTS clients (
 -- Индекс для поиска клиентов по имени
 CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 
+-- ============================================================================
+-- Типы абонементов (шаблоны)
+-- Предустановленные типы абонементов для быстрого добавления
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS subscription_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  -- Количество занятий в абонементе
+  lessons_count INTEGER NOT NULL,
+  -- Срок действия в днях
+  duration_days INTEGER NOT NULL
+);
+
+-- ============================================================================
+-- Покупки абонементов (приход)
+-- Запись о покупке абонемента клиентом
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS subscription_purchases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  -- Количество купленных занятий
+  lessons_count INTEGER NOT NULL,
+  -- Дата покупки (ISO-8601)
+  purchase_date TEXT NOT NULL,
+  -- Дата окончания действия абонемента (ISO-8601)
+  expiry_date TEXT NOT NULL,
+  -- Комментарий (название абонемента, способ оплаты и т.д.)
+  comment TEXT NULL,
+  CONSTRAINT fk_purchase_client
+    FOREIGN KEY (client_id)
+    REFERENCES clients(id)
+    ON DELETE CASCADE
+);
+
+-- Индексы для покупок
+CREATE INDEX IF NOT EXISTS idx_purchases_client ON subscription_purchases(client_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON subscription_purchases(purchase_date);
+
+-- ============================================================================
+-- Расходы абонементов (трата)
+-- Запись об использовании одного занятия из абонемента
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS subscription_expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  -- Дата расхода (ISO-8601)
+  expense_date TEXT NOT NULL,
+  -- Комментарий (название занятия, тренер и т.д.)
+  comment TEXT NULL,
+  CONSTRAINT fk_expense_client
+    FOREIGN KEY (client_id)
+    REFERENCES clients(id)
+    ON DELETE CASCADE
+);
+
+-- Индексы для расходов
+CREATE INDEX IF NOT EXISTS idx_expenses_client ON subscription_expenses(client_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON subscription_expenses(expense_date);
+

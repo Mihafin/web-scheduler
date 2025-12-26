@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Типы абонементов — Web Scheduler</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; }
+        header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+        .row { display: flex; align-items: center; gap: 8px; }
+        .muted { color: #6b7280; font-size: 12px; }
+        main { max-width: 800px; margin: 0 auto; padding: 16px; }
+        .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+        .btn { padding: 8px 12px; border: 1px solid #e5e7eb; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; }
+        .btn.secondary { background: #fff; color: #111827; }
+        .btn.danger { background: #b91c1c; border-color: #b91c1c; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #fafafa; font-weight: 600; }
+        tr:last-child td { border-bottom: 0; }
+        tr:hover td { background: #f9fafb; }
+        .actions-cell { display: flex; gap: 6px; }
+        .actions-cell button { padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+        .edit-btn { background: #f3f4f6; border: 1px solid #e5e7eb; }
+        .delete-btn { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+        /* Modal */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-backdrop.hidden { display: none !important; }
+        .modal { background: #fff; border-radius: 8px; padding: 20px; width: 400px; max-width: calc(100% - 24px); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+        .modal h3 { margin: 0 0 16px 0; }
+        .modal .form-group { margin-bottom: 12px; }
+        .modal .form-group label { display: block; margin-bottom: 4px; font-size: 14px; color: #374151; }
+        .modal .form-group input { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; }
+        .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .empty { text-align: center; padding: 24px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="row">
+            <a href="/subscriptions.html" style="text-decoration:none;">← Абонементы</a>
+            <h3 style="margin:0;">Типы абонементов</h3>
+        </div>
+        <span class="muted">Шаблоны для быстрого добавления</span>
+    </header>
+
+    <main>
+        <div class="controls">
+            <button id="addBtn" class="btn">+ Добавить тип</button>
+        </div>
+
+        <table id="types-table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Занятий</th>
+                    <th>Срок (дней)</th>
+                    <th style="width: 140px;">Действия</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div id="emptyState" class="empty hidden">Типы абонементов не найдены</div>
+    </main>
+
+    <!-- Модальное окно добавления/редактирования -->
+    <div id="typeModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3 id="modalTitle">Добавить тип</h3>
+            <div class="form-group">
+                <label for="typeName">Название</label>
+                <input id="typeName" type="text" placeholder="Например: Стартерпак" />
+            </div>
+            <div class="form-group">
+                <label for="typeLessons">Количество занятий</label>
+                <input id="typeLessons" type="number" min="1" value="5" />
+            </div>
+            <div class="form-group">
+                <label for="typeDays">Срок действия (дней)</label>
+                <input id="typeDays" type="number" min="1" value="30" />
+            </div>
+            <div class="actions">
+                <button id="cancelBtn" class="btn secondary">Отмена</button>
+                <button id="saveBtn" class="btn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script>
+        let editingId = null;
+
+        async function loadTypes() {
+            try {
+                const types = await fetchJSON(`${API}/subscription-types`);
+                renderTypes(types);
+            } catch (err) {
+                console.error('Ошибка загрузки типов:', err);
+                alert('Ошибка загрузки типов абонементов');
+            }
+        }
+
+        function renderTypes(types) {
+            const tbody = document.querySelector('#types-table tbody');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('types-table');
+            
+            tbody.innerHTML = '';
+            
+            if (types.length === 0) {
+                table.style.display = 'none';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            table.style.display = '';
+            emptyState.classList.add('hidden');
+            
+            for (const t of types) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(t.name)}</td>
+                    <td>${t.lessonsCount}</td>
+                    <td>${t.durationDays}</td>
+                    <td class="actions-cell">
+                        <button class="edit-btn" data-id="${t.id}" data-name="${escapeHtml(t.name)}" data-lessons="${t.lessonsCount}" data-days="${t.durationDays}">Изменить</button>
+                        <button class="delete-btn" data-id="${t.id}">Удалить</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+            
+            tbody.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openModal('edit', Number(btn.dataset.id), btn.dataset.name, Number(btn.dataset.lessons), Number(btn.dataset.days));
+                });
+            });
+            
+            tbody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    deleteType(Number(btn.dataset.id));
+                });
+            });
+        }
+
+        function openModal(mode, id = null, name = '', lessons = 5, days = 30) {
+            const modal = document.getElementById('typeModal');
+            const title = document.getElementById('modalTitle');
+            const nameInput = document.getElementById('typeName');
+            const lessonsInput = document.getElementById('typeLessons');
+            const daysInput = document.getElementById('typeDays');
+            
+            editingId = id;
+            title.textContent = mode === 'edit' ? 'Редактировать тип' : 'Добавить тип';
+            nameInput.value = name;
+            lessonsInput.value = lessons;
+            daysInput.value = days;
+            
+            modal.classList.remove('hidden');
+            nameInput.focus();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('typeModal');
+            modal.classList.add('hidden');
+            editingId = null;
+        }
+
+        async function saveType() {
+            const name = document.getElementById('typeName').value.trim();
+            const lessonsCount = parseInt(document.getElementById('typeLessons').value, 10);
+            const durationDays = parseInt(document.getElementById('typeDays').value, 10);
+            
+            if (!name) {
+                alert('Введите название');
+                return;
+            }
+            if (!lessonsCount || lessonsCount < 1) {
+                alert('Укажите количество занятий');
+                return;
+            }
+            if (!durationDays || durationDays < 1) {
+                alert('Укажите срок действия');
+                return;
+            }
+            
+            try {
+                if (editingId) {
+                    await fetchJSON(`${API}/subscription-types/${editingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, lessonsCount, durationDays })
+                    });
+                } else {
+                    await fetchJSON(`${API}/subscription-types`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, lessonsCount, durationDays })
+                    });
+                }
+                closeModal();
+                loadTypes();
+            } catch (err) {
+                console.error('Ошибка сохранения:', err);
+                alert('Ошибка сохранения');
+            }
+        }
+
+        async function deleteType(id) {
+            if (!confirm('Удалить тип абонемента?')) return;
+            
+            try {
+                const res = await fetch(`${API}/subscription-types/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                loadTypes();
+            } catch (err) {
+                console.error('Ошибка удаления:', err);
+                alert('Ошибка удаления');
+            }
+        }
+
+        document.getElementById('addBtn').addEventListener('click', () => openModal('create'));
+        document.getElementById('cancelBtn').addEventListener('click', closeModal);
+        document.getElementById('saveBtn').addEventListener('click', saveType);
+
+        document.getElementById('typeModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-backdrop')) closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        loadTypes();
+    </script>
+</body>
+</html>
+

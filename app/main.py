@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from .routers import health, tags, tag_values, schedules, audit, clients
+from .routers import health, tags, tag_values, schedules, audit, clients, subscription_types, subscriptions
 
 app = FastAPI(title="Web Scheduler")
 
@@ -20,6 +20,8 @@ app.include_router(tag_values.router, prefix="/api")
 app.include_router(schedules.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
+app.include_router(subscription_types.router, prefix="/api")
+app.include_router(subscriptions.router, prefix="/api")
 
 # Раздача статики фронтенда (SPA)
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")

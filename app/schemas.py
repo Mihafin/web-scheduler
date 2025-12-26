@@ -108,3 +108,91 @@ class ClientOut(ClientBase):
     class Config:
         from_attributes = True
 
+
+# ============ Типы абонементов (шаблоны) ============
+
+class SubscriptionTypeBase(BaseModel):
+    name: str = Field(min_length=1)
+    lessonsCount: int = Field(gt=0)
+    durationDays: int = Field(gt=0)
+
+
+class SubscriptionTypeCreate(SubscriptionTypeBase):
+    pass
+
+
+class SubscriptionTypeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+    lessonsCount: Optional[int] = Field(default=None, gt=0)
+    durationDays: Optional[int] = Field(default=None, gt=0)
+
+
+class SubscriptionTypeOut(BaseModel):
+    id: int
+    name: str
+    lessonsCount: int
+    durationDays: int
+
+    class Config:
+        from_attributes = True
+
+
+# ============ Покупки абонементов ============
+
+class SubscriptionPurchaseBase(BaseModel):
+    clientId: int
+    lessonsCount: int = Field(gt=0)
+    purchaseDate: str
+    expiryDate: str
+    comment: Optional[str] = None
+
+
+class SubscriptionPurchaseCreate(SubscriptionPurchaseBase):
+    pass
+
+
+class SubscriptionPurchaseOut(BaseModel):
+    id: int
+    clientId: int
+    lessonsCount: int
+    purchaseDate: str
+    expiryDate: str
+    comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============ Расходы абонементов ============
+
+class SubscriptionExpenseBase(BaseModel):
+    clientId: int
+    expenseDate: str
+    comment: Optional[str] = None
+
+
+class SubscriptionExpenseCreate(SubscriptionExpenseBase):
+    pass
+
+
+class SubscriptionExpenseOut(BaseModel):
+    id: int
+    clientId: int
+    expenseDate: str
+    comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============ Баланс клиента ============
+
+class ClientBalanceOut(BaseModel):
+    clientId: int
+    clientName: str
+    totalPurchased: int  # Сумма всех купленных занятий
+    totalSpent: int  # Сумма всех расходов
+    balance: int  # Остаток занятий
+    purchases: List[SubscriptionPurchaseOut]
+    expenses: List[SubscriptionExpenseOut]
+

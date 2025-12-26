@@ -17,6 +17,9 @@
 - **Связь N—M** между расписаниями и значениями тегов (`schedule_tag_values`)
 - **Журнал аудита** (`audit_logs`): фиксирует все CREATE/UPDATE/DELETE операции
 - **Клиенты** (`clients`): справочник клиентов (id, имя)
+- **Типы абонементов** (`subscription_types`): шаблоны абонементов (название, кол-во занятий, срок в днях)
+- **Покупки абонементов** (`subscription_purchases`): записи о покупке абонементов клиентами
+- **Расходы абонементов** (`subscription_expenses`): записи об использовании занятий
 
 Схема отношений:
 
@@ -125,13 +128,17 @@ web_scheduler/
 │       ├── tag_values.py   # CRUD /api/tags/{id}/values
 │       ├── schedules.py    # CRUD /api/schedules
 │       ├── audit.py        # GET /api/audit
-│       └── clients.py      # CRUD /api/clients
+│       ├── clients.py      # CRUD /api/clients
+│       ├── subscription_types.py  # CRUD /api/subscription-types
+│       └── subscriptions.py       # Покупки/расходы /api/subscriptions
 ├── frontend/               # Статичные HTML/CSS/JS файлы
 │   ├── index.html          # Основной интерфейс календаря
 │   ├── tags.html           # Управление тегами
 │   ├── logs.html           # Журнал аудита
 │   ├── reports.html        # Отчёты
-│   └── clients.html        # Управление клиентами
+│   ├── clients.html        # Управление клиентами
+│   ├── subscriptions.html  # Абонементы (покупки и расходы)
+│   └── subscription_types.html  # Типы абонементов (шаблоны)
 ├── docs/                   # Документация
 │   ├── api.md              # Описание API
 │   ├── architecture.md     # Архитектура системы

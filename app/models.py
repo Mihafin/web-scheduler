@@ -75,3 +75,42 @@ class Client(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
 
+    purchases: Mapped[list[SubscriptionPurchase]] = relationship("SubscriptionPurchase", back_populates="client", cascade="all, delete-orphan")
+    expenses: Mapped[list[SubscriptionExpense]] = relationship("SubscriptionExpense", back_populates="client", cascade="all, delete-orphan")
+
+
+class SubscriptionType(Base):
+    """Шаблоны/типы абонементов (стартерпак, мультипас и т.д.)"""
+    __tablename__ = "subscription_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    lessons_count: Mapped[int] = mapped_column(Integer, nullable=False)  # Количество занятий
+    duration_days: Mapped[int] = mapped_column(Integer, nullable=False)  # Срок действия в днях
+
+
+class SubscriptionPurchase(Base):
+    """Покупка (приход) абонемента"""
+    __tablename__ = "subscription_purchases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    lessons_count: Mapped[int] = mapped_column(Integer, nullable=False)  # Количество купленных занятий
+    purchase_date: Mapped[str] = mapped_column(String, nullable=False)  # Дата покупки (ISO-8601)
+    expiry_date: Mapped[str] = mapped_column(String, nullable=False)  # Дата завершения действия (ISO-8601)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)  # Комментарий
+
+    client: Mapped[Client] = relationship("Client", back_populates="purchases")
+
+
+class SubscriptionExpense(Base):
+    """Расход (трата) занятия из абонемента"""
+    __tablename__ = "subscription_expenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    expense_date: Mapped[str] = mapped_column(String, nullable=False)  # Дата расхода (ISO-8601)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)  # Комментарий
+
+    client: Mapped[Client] = relationship("Client", back_populates="expenses")
+

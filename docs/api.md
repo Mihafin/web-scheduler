@@ -435,6 +435,198 @@
 
 ---
 
+### Типы абонементов (шаблоны)
+
+#### Получить список типов абонементов
+
+**GET** `/api/subscription-types`
+
+**Ответ:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Стартерпак",
+    "lessonsCount": 5,
+    "durationDays": 30
+  },
+  {
+    "id": 2,
+    "name": "Мультипас",
+    "lessonsCount": 10,
+    "durationDays": 60
+  }
+]
+```
+
+#### Создать тип абонемента
+
+**POST** `/api/subscription-types`
+
+**Тело запроса:**
+```json
+{
+  "name": "Безлимит",
+  "lessonsCount": 30,
+  "durationDays": 30
+}
+```
+
+| Поле | Тип | Обязательное | Описание |
+|------|-----|--------------|----------|
+| name | string | Да | Название типа |
+| lessonsCount | integer | Да | Количество занятий |
+| durationDays | integer | Да | Срок действия в днях |
+
+**Ответ:** Созданный объект типа абонемента
+
+#### Обновить тип абонемента
+
+**PUT** `/api/subscription-types/{id}`
+
+**Ответ:** Обновлённый объект типа абонемента
+
+#### Удалить тип абонемента
+
+**DELETE** `/api/subscription-types/{id}`
+
+**Ответ:** `204 No Content`
+
+---
+
+### Абонементы (покупки и расходы)
+
+#### Получить список покупок
+
+**GET** `/api/subscriptions/purchases`
+
+**Query параметры:**
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| client_id | integer | Фильтр по клиенту |
+
+**Ответ:**
+```json
+[
+  {
+    "id": 1,
+    "clientId": 1,
+    "lessonsCount": 5,
+    "purchaseDate": "2025-01-15T00:00:00Z",
+    "expiryDate": "2025-02-14T00:00:00Z",
+    "comment": "Стартерпак"
+  }
+]
+```
+
+#### Создать покупку (приход)
+
+**POST** `/api/subscriptions/purchases`
+
+**Тело запроса:**
+```json
+{
+  "clientId": 1,
+  "lessonsCount": 5,
+  "purchaseDate": "2025-01-15T00:00:00Z",
+  "expiryDate": "2025-02-14T00:00:00Z",
+  "comment": "Стартерпак"
+}
+```
+
+| Поле | Тип | Обязательное | Описание |
+|------|-----|--------------|----------|
+| clientId | integer | Да | ID клиента |
+| lessonsCount | integer | Да | Количество занятий |
+| purchaseDate | string (ISO-8601) | Да | Дата покупки |
+| expiryDate | string (ISO-8601) | Да | Дата окончания |
+| comment | string | Нет | Комментарий |
+
+#### Удалить покупку
+
+**DELETE** `/api/subscriptions/purchases/{id}`
+
+**Ответ:** `204 No Content`
+
+---
+
+#### Получить список расходов
+
+**GET** `/api/subscriptions/expenses`
+
+**Query параметры:**
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| client_id | integer | Фильтр по клиенту |
+
+**Ответ:**
+```json
+[
+  {
+    "id": 1,
+    "clientId": 1,
+    "expenseDate": "2025-01-16T00:00:00Z",
+    "comment": "Йога"
+  }
+]
+```
+
+#### Создать расход (списание 1 занятия)
+
+**POST** `/api/subscriptions/expenses`
+
+**Тело запроса:**
+```json
+{
+  "clientId": 1,
+  "expenseDate": "2025-01-16T00:00:00Z",
+  "comment": "Йога"
+}
+```
+
+| Поле | Тип | Обязательное | Описание |
+|------|-----|--------------|----------|
+| clientId | integer | Да | ID клиента |
+| expenseDate | string (ISO-8601) | Да | Дата расхода |
+| comment | string | Нет | Комментарий |
+
+#### Удалить расход
+
+**DELETE** `/api/subscriptions/expenses/{id}`
+
+**Ответ:** `204 No Content`
+
+---
+
+#### Получить баланс клиента
+
+**GET** `/api/subscriptions/balance/{client_id}`
+
+**Ответ:**
+```json
+{
+  "clientId": 1,
+  "clientName": "Иванов Иван",
+  "totalPurchased": 10,
+  "totalSpent": 3,
+  "balance": 7,
+  "purchases": [...],
+  "expenses": [...]
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| clientId | integer | ID клиента |
+| clientName | string | Имя клиента |
+| totalPurchased | integer | Сумма всех купленных занятий |
+| totalSpent | integer | Количество использованных занятий |
+| balance | integer | Остаток занятий |
+| purchases | array | Список покупок |
+| expenses | array | Список расходов |
+
+---
+
 ### HTTP коды ответов
 
 | Код | Описание |
