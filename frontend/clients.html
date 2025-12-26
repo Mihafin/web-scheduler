@@ -84,6 +84,20 @@
         </div>
     </div>
 
+    <!-- Модальное окно предупреждения о похожих клиентах -->
+    <div id="similarModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3 style="color: #d97706;">⚠️ Найдены похожие клиенты</h3>
+            <p style="margin: 0 0 8px 0; color: #374151;">Вы добавляете: <strong id="newClientNameDisplay"></strong></p>
+            <p style="margin: 0 0 12px 0; color: #374151;">В базе уже есть клиенты с похожими именами:</p>
+            <ul id="similarList" style="margin: 0 0 16px 0; padding-left: 20px; color: #111827;"></ul>
+            <div class="actions">
+                <button id="similarCancelBtn" class="btn secondary">Отменить добавление</button>
+                <button id="similarConfirmBtn" class="btn" style="background: #d97706; border-color: #d97706;">Всё равно добавить</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/common.js"></script>
     <script>
         let editingId = null;
@@ -174,6 +188,76 @@
             document.getElementById('clientName').value = '';
         }
 
+        let pendingClientName = null;
+
+        // Расстояние Левенштейна (edit distance)
+        function levenshteinDistance(a, b) {
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1, // замена
+                            matrix[i][j - 1] + 1,     // вставка
+                            matrix[i - 1][j] + 1      // удаление
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function findSimilarClients(newName, existingClients) {
+            const newLower = newName.toLowerCase();
+            
+            return existingClients.filter(client => {
+                const existingLower = client.name.toLowerCase();
+                // Если разница <= 3 символов — считаем похожими
+                const distance = levenshteinDistance(newLower, existingLower);
+                return distance <= 3;
+            });
+        }
+
+        function showSimilarWarning(similarClients, newName) {
+            document.getElementById('newClientNameDisplay').textContent = newName;
+            const list = document.getElementById('similarList');
+            list.innerHTML = '';
+            for (const c of similarClients) {
+                const li = document.createElement('li');
+                li.textContent = c.name;
+                list.appendChild(li);
+            }
+            document.getElementById('similarModal').classList.remove('hidden');
+        }
+
+        function closeSimilarModal() {
+            document.getElementById('similarModal').classList.add('hidden');
+            pendingClientName = null;
+        }
+
+        async function doCreateClient(name) {
+            try {
+                await fetchJSON(`${API}/clients`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                closeModal();
+                loadClients(document.getElementById('searchInput').value);
+            } catch (err) {
+                console.error('Ошибка сохранения:', err);
+                alert('Ошибка сохранения клиента');
+            }
+        }
+
         async function saveClient() {
             const nameInput = document.getElementById('clientName');
             const name = nameInput.value.trim();
@@ -186,22 +270,26 @@
             
             try {
                 if (editingId) {
-                    // Редактирование
+                    // Редактирование — без проверки похожих
                     await fetchJSON(`${API}/clients/${editingId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name })
                     });
+                    closeModal();
+                    loadClients(document.getElementById('searchInput').value);
                 } else {
-                    // Создание
-                    await fetchJSON(`${API}/clients`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name })
-                    });
+                    // Создание — проверяем похожих
+                    const allClients = await fetchJSON(`${API}/clients`);
+                    const similar = findSimilarClients(name, allClients);
+                    
+                    if (similar.length > 0) {
+                        pendingClientName = name;
+                        showSimilarWarning(similar, name);
+                    } else {
+                        await doCreateClient(name);
+                    }
                 }
-                closeModal();
-                loadClients(document.getElementById('searchInput').value);
             } catch (err) {
                 console.error('Ошибка сохранения:', err);
                 alert('Ошибка сохранения клиента');
@@ -225,6 +313,15 @@
         document.getElementById('addBtn').addEventListener('click', () => openModal('create'));
         document.getElementById('cancelBtn').addEventListener('click', closeModal);
         document.getElementById('saveBtn').addEventListener('click', saveClient);
+
+        // Обработчики для модалки похожих клиентов
+        document.getElementById('similarCancelBtn').addEventListener('click', closeSimilarModal);
+        document.getElementById('similarConfirmBtn').addEventListener('click', async () => {
+            if (pendingClientName) {
+                await doCreateClient(pendingClientName);
+                closeSimilarModal();
+            }
+        });
 
         function updateResetButton() {
             const searchInput = document.getElementById('searchInput');
