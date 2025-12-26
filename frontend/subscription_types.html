@@ -223,10 +223,7 @@
         document.getElementById('cancelBtn').addEventListener('click', closeModal);
         document.getElementById('saveBtn').addEventListener('click', saveType);
 
-        document.getElementById('typeModal').addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-backdrop')) closeModal();
-        });
-
+        // Закрытие по Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
         });

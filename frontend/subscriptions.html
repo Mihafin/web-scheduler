@@ -561,16 +561,7 @@
             }
         });
 
-        // Закрытие модалок по клику на фон
-        document.querySelectorAll('.modal-backdrop').forEach(m => {
-            m.addEventListener('click', (e) => {
-                if (e.target.classList.contains('modal-backdrop')) {
-                    m.classList.add('hidden');
-                }
-            });
-        });
-
-        // Escape для закрытия
+        // Закрытие по Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden'));
