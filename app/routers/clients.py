@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from ..db import get_db, engine, Base
 from .. import models, schemas
 from ..utils import get_remote_user, write_audit_log
@@ -21,10 +20,12 @@ def list_clients(
     db: Session = Depends(get_db)
 ):
     """Получить список клиентов с опциональным поиском по имени."""
-    q = db.query(models.Client)
+    clients = db.query(models.Client).order_by(models.Client.name).all()
     if search:
-        q = q.filter(models.Client.name.ilike(f"%{search}%"))
-    return q.order_by(models.Client.name).all()
+        # Регистронезависимый поиск в Python (SQLite lower() не работает с кириллицей)
+        search_lower = search.lower()
+        clients = [c for c in clients if search_lower in c.name.lower()]
+    return clients
 
 
 @router.get("/{client_id}", response_model=schemas.ClientOut)
