@@ -126,6 +126,20 @@
         </div>
     </div>
 
+    <!-- Модалка предупреждения о похожих клиентах -->
+    <div id="similarModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3 style="color: #d97706;">⚠️ Найдены похожие клиенты</h3>
+            <p style="margin: 0 0 8px 0; color: #374151;">Вы добавляете: <strong id="newClientNameDisplay"></strong></p>
+            <p style="margin: 0 0 12px 0; color: #374151;">В базе уже есть клиенты с похожими именами:</p>
+            <ul id="similarList" style="margin: 0 0 16px 0; padding-left: 20px; color: #111827;"></ul>
+            <div class="actions">
+                <button id="similarCancelBtn" class="btn secondary">Отменить добавление</button>
+                <button id="similarConfirmBtn" class="btn" style="background: #d97706; border-color: #d97706;">Всё равно добавить</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Модалка добавления покупки -->
     <div id="purchaseModal" class="modal-backdrop hidden">
         <div class="modal">
@@ -365,13 +379,26 @@
             document.getElementById('clientModal').classList.add('hidden');
         }
 
-        async function saveNewClient() {
-            const name = document.getElementById('newClientName').value.trim();
-            if (!name) {
-                alert('Введите имя клиента');
-                return;
+        let pendingClientName = null;
+
+        function showSimilarWarning(similarClients, newName) {
+            document.getElementById('newClientNameDisplay').textContent = newName;
+            const list = document.getElementById('similarList');
+            list.innerHTML = '';
+            for (const c of similarClients) {
+                const li = document.createElement('li');
+                li.textContent = c.name;
+                list.appendChild(li);
             }
-            
+            document.getElementById('similarModal').classList.remove('hidden');
+        }
+
+        function closeSimilarModal() {
+            document.getElementById('similarModal').classList.add('hidden');
+            pendingClientName = null;
+        }
+
+        async function doCreateClient(name) {
             try {
                 const newClient = await fetchJSON(`${API}/clients`, {
                     method: 'POST',
@@ -380,13 +407,29 @@
                 });
                 closeClientModal();
                 await loadClients();
-                // Выбираем нового клиента
                 selectedClientId = newClient.id;
                 document.getElementById('clientSelect').value = newClient.id;
                 loadClientBalance(newClient.id);
             } catch (err) {
                 console.error('Ошибка создания клиента:', err);
                 alert('Ошибка создания клиента');
+            }
+        }
+
+        async function saveNewClient() {
+            const name = document.getElementById('newClientName').value.trim();
+            if (!name) {
+                alert('Введите имя клиента');
+                return;
+            }
+            
+            const similar = findSimilarClients(name, clients);
+            
+            if (similar.length > 0) {
+                pendingClientName = name;
+                showSimilarWarning(similar, name);
+            } else {
+                await doCreateClient(name);
             }
         }
 
@@ -531,6 +574,15 @@
         document.getElementById('addClientBtn').addEventListener('click', openClientModal);
         document.getElementById('clientModalCancel').addEventListener('click', closeClientModal);
         document.getElementById('clientModalSave').addEventListener('click', saveNewClient);
+
+        // Обработчики для модалки похожих клиентов
+        document.getElementById('similarCancelBtn').addEventListener('click', closeSimilarModal);
+        document.getElementById('similarConfirmBtn').addEventListener('click', async () => {
+            if (pendingClientName) {
+                await doCreateClient(pendingClientName);
+                closeSimilarModal();
+            }
+        });
 
         document.getElementById('addPurchaseBtn').addEventListener('click', openPurchaseModal);
         document.getElementById('purchaseModalCancel').addEventListener('click', closePurchaseModal);
