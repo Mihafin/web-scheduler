@@ -16,6 +16,7 @@
 - **Значение тега** (`tag_values`): принадлежит тегу (например, «зал1», «зал2»), поле `color` (HEX)
 - **Связь N—M** между расписаниями и значениями тегов (`schedule_tag_values`)
 - **Журнал аудита** (`audit_logs`): фиксирует все CREATE/UPDATE/DELETE операции
+- **Клиенты** (`clients`): справочник клиентов (id, имя)
 
 Схема отношений:
 
@@ -123,12 +124,14 @@ web_scheduler/
 │       ├── tags.py         # CRUD /api/tags
 │       ├── tag_values.py   # CRUD /api/tags/{id}/values
 │       ├── schedules.py    # CRUD /api/schedules
-│       └── audit.py        # GET /api/audit
+│       ├── audit.py        # GET /api/audit
+│       └── clients.py      # CRUD /api/clients
 ├── frontend/               # Статичные HTML/CSS/JS файлы
 │   ├── index.html          # Основной интерфейс календаря
 │   ├── tags.html           # Управление тегами
 │   ├── logs.html           # Журнал аудита
-│   └── reports.html        # Отчёты
+│   ├── reports.html        # Отчёты
+│   └── clients.html        # Управление клиентами
 ├── docs/                   # Документация
 │   ├── api.md              # Описание API
 │   ├── architecture.md     # Архитектура системы

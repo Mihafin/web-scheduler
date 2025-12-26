@@ -68,3 +68,10 @@ class AuditLog(Base):
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     details: Mapped[str | None] = mapped_column(String, nullable=True)
 
+
+class Client(Base):
+    __tablename__ = "clients"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+

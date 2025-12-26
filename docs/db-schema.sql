@@ -110,3 +110,15 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs(ts);
 -- Фильтрация аудита по сущности
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity);
 
+-- ============================================================================
+-- Клиенты
+-- Справочник клиентов системы
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);
+
+-- Индекс для поиска клиентов по имени
+CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
+

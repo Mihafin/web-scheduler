@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Клиенты — Web Scheduler</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; }
+        header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+        .row { display: flex; align-items: center; gap: 8px; }
+        .muted { color: #6b7280; font-size: 12px; }
+        main { max-width: 800px; margin: 0 auto; padding: 16px; }
+        .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+        input[type="text"] { padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
+        .btn { padding: 8px 12px; border: 1px solid #e5e7eb; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; }
+        .btn.secondary { background: #fff; color: #111827; }
+        .btn.danger { background: #b91c1c; border-color: #b91c1c; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #fafafa; font-weight: 600; }
+        tr:last-child td { border-bottom: 0; }
+        tr:hover td { background: #f9fafb; }
+        .actions-cell { display: flex; gap: 6px; }
+        .actions-cell button { padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+        .edit-btn { background: #f3f4f6; border: 1px solid #e5e7eb; }
+        .delete-btn { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+        /* Modal */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-backdrop.hidden { display: none !important; }
+        .modal { background: #fff; border-radius: 8px; padding: 20px; width: 400px; max-width: calc(100% - 24px); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+        .modal h3 { margin: 0 0 16px 0; }
+        .modal .form-group { margin-bottom: 12px; }
+        .modal .form-group label { display: block; margin-bottom: 4px; font-size: 14px; color: #374151; }
+        .modal .form-group input { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; box-sizing: border-box; }
+        .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .empty { text-align: center; padding: 24px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="row">
+            <a href="/" style="text-decoration:none;">← На главную</a>
+            <h3 style="margin:0;">Клиенты</h3>
+        </div>
+        <span class="muted">Управление клиентами</span>
+    </header>
+
+    <main>
+        <div class="controls">
+            <input id="searchInput" type="text" placeholder="Поиск по имени..." style="flex: 1; min-width: 200px;" />
+            <button id="searchBtn" class="btn secondary">Поиск</button>
+            <button id="addBtn" class="btn">+ Добавить</button>
+        </div>
+
+        <table id="clients-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th>Имя</th>
+                    <th style="width: 140px;">Действия</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div id="emptyState" class="empty hidden">Клиенты не найдены</div>
+    </main>
+
+    <!-- Модальное окно добавления/редактирования -->
+    <div id="clientModal" class="modal-backdrop hidden">
+        <div class="modal">
+            <h3 id="modalTitle">Добавить клиента</h3>
+            <div class="form-group">
+                <label for="clientName">Имя</label>
+                <input id="clientName" type="text" placeholder="Введите имя клиента" />
+            </div>
+            <div class="actions">
+                <button id="cancelBtn" class="btn secondary">Отмена</button>
+                <button id="saveBtn" class="btn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script>
+        let editingId = null;
+
+        async function loadClients(search = '') {
+            const params = new URLSearchParams();
+            if (search) params.set('search', search);
+            const url = `${API}/clients${params.toString() ? '?' + params : ''}`;
+            
+            try {
+                const clients = await fetchJSON(url);
+                renderClients(clients);
+            } catch (err) {
+                console.error('Ошибка загрузки клиентов:', err);
+                alert('Ошибка загрузки клиентов');
+            }
+        }
+
+        function renderClients(clients) {
+            const tbody = document.querySelector('#clients-table tbody');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('clients-table');
+            
+            tbody.innerHTML = '';
+            
+            if (clients.length === 0) {
+                table.style.display = 'none';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            table.style.display = '';
+            emptyState.classList.add('hidden');
+            
+            for (const client of clients) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${client.id}</td>
+                    <td>${escapeHtml(client.name)}</td>
+                    <td class="actions-cell">
+                        <button class="edit-btn" data-id="${client.id}" data-name="${escapeHtml(client.name)}">Изменить</button>
+                        <button class="delete-btn" data-id="${client.id}">Удалить</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+            
+            // Обработчики для кнопок редактирования
+            tbody.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openModal('edit', Number(btn.dataset.id), btn.dataset.name);
+                });
+            });
+            
+            // Обработчики для кнопок удаления
+            tbody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    deleteClient(Number(btn.dataset.id));
+                });
+            });
+        }
+
+        function openModal(mode, id = null, name = '') {
+            const modal = document.getElementById('clientModal');
+            const title = document.getElementById('modalTitle');
+            const nameInput = document.getElementById('clientName');
+            
+            editingId = id;
+            title.textContent = mode === 'edit' ? 'Редактировать клиента' : 'Добавить клиента';
+            nameInput.value = name;
+            
+            modal.classList.remove('hidden');
+            nameInput.focus();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('clientModal');
+            modal.classList.add('hidden');
+            editingId = null;
+            document.getElementById('clientName').value = '';
+        }
+
+        async function saveClient() {
+            const nameInput = document.getElementById('clientName');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Введите имя клиента');
+                nameInput.focus();
+                return;
+            }
+            
+            try {
+                if (editingId) {
+                    // Редактирование
+                    await fetchJSON(`${API}/clients/${editingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+                } else {
+                    // Создание
+                    await fetchJSON(`${API}/clients`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+                }
+                closeModal();
+                loadClients(document.getElementById('searchInput').value);
+            } catch (err) {
+                console.error('Ошибка сохранения:', err);
+                alert('Ошибка сохранения клиента');
+            }
+        }
+
+        async function deleteClient(id) {
+            if (!confirm('Удалить клиента?')) return;
+            
+            try {
+                const res = await fetch(`${API}/clients/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                loadClients(document.getElementById('searchInput').value);
+            } catch (err) {
+                console.error('Ошибка удаления:', err);
+                alert('Ошибка удаления клиента');
+            }
+        }
+
+        // Обработчики событий
+        document.getElementById('addBtn').addEventListener('click', () => openModal('create'));
+        document.getElementById('cancelBtn').addEventListener('click', closeModal);
+        document.getElementById('saveBtn').addEventListener('click', saveClient);
+
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            loadClients(document.getElementById('searchInput').value);
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadClients(document.getElementById('searchInput').value);
+            }
+        });
+
+        // Закрытие модалки по клику на фон
+        document.getElementById('clientModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-backdrop')) {
+                closeModal();
+            }
+        });
+
+        // Закрытие по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Enter для сохранения в модалке
+        document.getElementById('clientName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveClient();
+            }
+        });
+
+        // Инициализация
+        loadClients();
+    </script>
+</body>
+</html>
+

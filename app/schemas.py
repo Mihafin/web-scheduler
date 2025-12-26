@@ -89,3 +89,22 @@ class AuditEntryOut(BaseModel):
     entityId: int | None
     details: str | None = None
 
+
+class ClientBase(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class ClientCreate(ClientBase):
+    pass
+
+
+class ClientUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+
+
+class ClientOut(ClientBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
