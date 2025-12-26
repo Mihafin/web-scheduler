@@ -51,6 +51,7 @@
     <main>
         <div class="controls">
             <input id="searchInput" type="text" placeholder="Поиск по имени..." style="flex: 1; min-width: 200px;" />
+            <button id="resetBtn" class="btn secondary hidden" style="color: #b91c1c;">✕</button>
             <button id="searchBtn" class="btn secondary">Поиск</button>
             <button id="addBtn" class="btn">+ Добавить</button>
         </div>
@@ -225,15 +226,35 @@
         document.getElementById('cancelBtn').addEventListener('click', closeModal);
         document.getElementById('saveBtn').addEventListener('click', saveClient);
 
+        function updateResetButton() {
+            const searchInput = document.getElementById('searchInput');
+            const resetBtn = document.getElementById('resetBtn');
+            if (searchInput.value.trim()) {
+                resetBtn.classList.remove('hidden');
+            } else {
+                resetBtn.classList.add('hidden');
+            }
+        }
+
         document.getElementById('searchBtn').addEventListener('click', () => {
             loadClients(document.getElementById('searchInput').value);
+            updateResetButton();
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            updateResetButton();
+            loadClients();
         });
 
         document.getElementById('searchInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 loadClients(document.getElementById('searchInput').value);
+                updateResetButton();
             }
         });
+
+        document.getElementById('searchInput').addEventListener('input', updateResetButton);
 
         // Закрытие по Escape
         document.addEventListener('keydown', (e) => {
