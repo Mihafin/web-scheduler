@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Импорт клиентов — Web Scheduler</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fafafa; }
+        header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+        .row { display: flex; align-items: center; gap: 8px; }
+        .muted { color: #6b7280; font-size: 12px; }
+        main { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+        .panel h4 { margin: 0 0 12px 0; }
+        textarea { width: 100%; min-height: 300px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; box-sizing: border-box; }
+        .btn { padding: 10px 20px; border: 1px solid #e5e7eb; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.secondary { background: #fff; color: #111827; }
+        .actions { display: flex; gap: 8px; margin-top: 12px; }
+        .result { margin-top: 16px; padding: 12px; border-radius: 6px; }
+        .result.success { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+        .result.error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+        .hidden { display: none; }
+        .stats { margin-top: 8px; font-size: 13px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="row">
+            <a href="/clients.html" style="text-decoration:none;">← Клиенты</a>
+            <h3 style="margin:0;">Импорт клиентов</h3>
+        </div>
+        <span class="muted">Массовое добавление</span>
+    </header>
+
+    <main>
+        <div class="panel">
+            <h4>Введите список клиентов</h4>
+            <p class="muted" style="margin: 0 0 12px 0;">Один клиент на строку. Пустые строки и дубликаты будут удалены.</p>
+            <textarea id="clientsInput" placeholder="Иванов Иван
+Петрова Мария
+Сидоров Алексей"></textarea>
+            <div class="stats" id="stats"></div>
+            <div class="actions">
+                <button id="importBtn" class="btn">Импортировать</button>
+                <button id="clearBtn" class="btn secondary">Очистить</button>
+            </div>
+        </div>
+
+        <div id="result" class="result hidden"></div>
+    </main>
+
+    <script src="/common.js"></script>
+    <script>
+        const textarea = document.getElementById('clientsInput');
+        const statsEl = document.getElementById('stats');
+        const resultEl = document.getElementById('result');
+
+        function parseClients(text) {
+            const lines = text.split('\n');
+            const trimmed = lines.map(l => l.trim()).filter(l => l.length > 0);
+            const unique = [...new Set(trimmed)];
+            return unique;
+        }
+
+        function updateStats() {
+            const clients = parseClients(textarea.value);
+            const lines = textarea.value.split('\n').filter(l => l.trim().length > 0).length;
+            const duplicates = lines - clients.length;
+            
+            if (clients.length === 0) {
+                statsEl.textContent = '';
+            } else {
+                let text = `Клиентов к импорту: ${clients.length}`;
+                if (duplicates > 0) {
+                    text += ` (дубликатов удалено: ${duplicates})`;
+                }
+                statsEl.textContent = text;
+            }
+        }
+
+        textarea.addEventListener('input', updateStats);
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            textarea.value = '';
+            updateStats();
+            resultEl.classList.add('hidden');
+        });
+
+        document.getElementById('importBtn').addEventListener('click', async () => {
+            const clients = parseClients(textarea.value);
+            
+            if (clients.length === 0) {
+                alert('Введите хотя бы одного клиента');
+                return;
+            }
+
+            const importBtn = document.getElementById('importBtn');
+            importBtn.disabled = true;
+            importBtn.textContent = 'Импорт...';
+            resultEl.classList.add('hidden');
+
+            let added = 0;
+            let errors = [];
+
+            for (const name of clients) {
+                try {
+                    await fetchJSON(`${API}/clients`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+                    added++;
+                } catch (err) {
+                    errors.push(name);
+                }
+            }
+
+            importBtn.disabled = false;
+            importBtn.textContent = 'Импортировать';
+
+            if (errors.length === 0) {
+                resultEl.className = 'result success';
+                resultEl.textContent = `✅ Успешно добавлено: ${added} клиентов`;
+                textarea.value = '';
+                updateStats();
+            } else {
+                resultEl.className = 'result error';
+                resultEl.innerHTML = `Добавлено: ${added}. Ошибки (${errors.length}): ${errors.join(', ')}`;
+            }
+            resultEl.classList.remove('hidden');
+        });
+
+        updateStats();
+    </script>
+</body>
+</html>
+
