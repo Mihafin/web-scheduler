@@ -280,7 +280,20 @@ function levenshteinDistance(a, b) {
 }
 
 /**
- * Найти похожих клиентов (разница <= 3 символов)
+ * Проверить совпадение слов (без учёта порядка)
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+function haveSameWords(a, b) {
+  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 0).sort().join(' ');
+  const wordsB = b.toLowerCase().split(/\s+/).filter(w => w.length > 0).sort().join(' ');
+  return wordsA === wordsB;
+}
+
+/**
+ * Найти похожих клиентов
+ * Критерии: разница <= 3 символов ИЛИ одинаковые слова в разном порядке
  * @param {string} newName - имя для проверки
  * @param {Array<{name: string}>} existingClients - список существующих клиентов
  * @returns {Array<{name: string}>}
@@ -289,8 +302,12 @@ function findSimilarClients(newName, existingClients) {
   const newLower = newName.toLowerCase();
   return existingClients.filter(client => {
     const existingLower = client.name.toLowerCase();
+    // Проверка 1: расстояние Левенштейна <= 3
     const distance = levenshteinDistance(newLower, existingLower);
-    return distance <= 3;
+    if (distance <= 3) return true;
+    // Проверка 2: одинаковые слова в разном порядке
+    if (haveSameWords(newName, client.name)) return true;
+    return false;
   });
 }
 
