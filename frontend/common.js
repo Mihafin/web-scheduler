@@ -280,34 +280,220 @@ function levenshteinDistance(a, b) {
 }
 
 /**
+ * Jaro similarity между двумя строками (0..1)
+ * @param {string} s1
+ * @param {string} s2
+ * @returns {number}
+ */
+function jaroSimilarity(s1, s2) {
+  if (s1 === s2) return 1.0;
+  if (s1.length === 0 || s2.length === 0) return 0.0;
+
+  const matchWindow = Math.max(0, Math.floor(Math.max(s1.length, s2.length) / 2) - 1);
+  const s1Matches = new Array(s1.length).fill(false);
+  const s2Matches = new Array(s2.length).fill(false);
+
+  let matches = 0;
+  let transpositions = 0;
+
+  // Найти совпадающие символы
+  for (let i = 0; i < s1.length; i++) {
+    const start = Math.max(0, i - matchWindow);
+    const end = Math.min(i + matchWindow + 1, s2.length);
+
+    for (let j = start; j < end; j++) {
+      if (s2Matches[j] || s1[i] !== s2[j]) continue;
+      s1Matches[i] = true;
+      s2Matches[j] = true;
+      matches++;
+      break;
+    }
+  }
+
+  if (matches === 0) return 0.0;
+
+  // Подсчёт транспозиций
+  let k = 0;
+  for (let i = 0; i < s1.length; i++) {
+    if (!s1Matches[i]) continue;
+    while (!s2Matches[k]) k++;
+    if (s1[i] !== s2[k]) transpositions++;
+    k++;
+  }
+
+  return (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
+}
+
+/**
+ * Jaro-Winkler similarity — улучшенный Jaro для имён (даёт бонус за общий префикс)
+ * @param {string} s1
+ * @param {string} s2
+ * @param {number} [p=0.1] - scaling factor (обычно 0.1)
+ * @returns {number}
+ */
+function jaroWinklerSimilarity(s1, s2, p = 0.1) {
+  const jaro = jaroSimilarity(s1, s2);
+  
+  // Найти длину общего префикса (макс. 4 символа)
+  let prefixLen = 0;
+  const maxPrefix = Math.min(4, s1.length, s2.length);
+  for (let i = 0; i < maxPrefix; i++) {
+    if (s1[i] === s2[i]) prefixLen++;
+    else break;
+  }
+
+  return jaro + prefixLen * p * (1 - jaro);
+}
+
+/**
+ * Нормализовать строку для сравнения
+ * @param {string} str
+ * @returns {string}
+ */
+function normalizeForComparison(str) {
+  return str.toLowerCase().replace(/ё/g, 'е').trim();
+}
+
+/**
+ * Разбить строку на слова
+ * @param {string} str
+ * @returns {string[]}
+ */
+function splitWords(str) {
+  return str.split(/\s+/).filter(w => w.length > 0);
+}
+
+/**
  * Проверить совпадение слов (без учёта порядка)
  * @param {string} a
  * @param {string} b
  * @returns {boolean}
  */
 function haveSameWords(a, b) {
-  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 0).sort().join(' ');
-  const wordsB = b.toLowerCase().split(/\s+/).filter(w => w.length > 0).sort().join(' ');
+  const wordsA = splitWords(normalizeForComparison(a)).sort().join(' ');
+  const wordsB = splitWords(normalizeForComparison(b)).sort().join(' ');
   return wordsA === wordsB;
 }
 
 /**
+ * Проверить, похожи ли два слова (для поиска опечаток)
+ * Использует комбинацию: Jaro-Winkler и нормализованный Левенштейн
+ * @param {string} word1
+ * @param {string} word2
+ * @returns {boolean}
+ */
+function areWordsSimilar(word1, word2) {
+  if (word1 === word2) return true;
+  
+  // Jaro-Winkler >= 0.85 — хорошее совпадение для имён
+  const jw = jaroWinklerSimilarity(word1, word2);
+  if (jw >= 0.85) return true;
+  
+  // Нормализованный Левенштейн: допускаем 1-2 ошибки в зависимости от длины
+  const maxLen = Math.max(word1.length, word2.length);
+  const distance = levenshteinDistance(word1, word2);
+  
+  // Для коротких слов (до 5 букв) допускаем 1 ошибку
+  // Для длинных слов допускаем до 20% ошибок
+  if (maxLen <= 5) {
+    return distance <= 1;
+  }
+  return distance / maxLen <= 0.2;
+}
+
+/**
  * Найти похожих клиентов
- * Критерии: разница <= 3 символов ИЛИ одинаковые слова в разном порядке
+ * 
+ * Критерии совпадения:
+ * 1. Полное совпадение (без учёта регистра и пробелов)
+ * 2. Слова в разном порядке: "Анна Булочкина" = "Булочкина Анна"
+ * 3. Похожие слова (опечатки): "Анна Булочкна" ≈ "Анна Булочкина"
+ * 4. Комбинация: похожие слова в любом порядке
+ * 
  * @param {string} newName - имя для проверки
  * @param {Array<{name: string}>} existingClients - список существующих клиентов
- * @returns {Array<{name: string}>}
+ * @returns {Array<{name: string, similarity: number}>}
  */
 function findSimilarClients(newName, existingClients) {
-  const newLower = newName.toLowerCase();
-  return existingClients.filter(client => {
-    const existingLower = client.name.toLowerCase();
-    // Проверка 1: расстояние Левенштейна <= 3
-    const distance = levenshteinDistance(newLower, existingLower);
-    if (distance <= 3) return true;
-    // Проверка 2: одинаковые слова в разном порядке
-    if (haveSameWords(newName, client.name)) return true;
-    return false;
-  });
+  const newNorm = normalizeForComparison(newName);
+  const newWords = splitWords(newNorm);
+  
+  if (newWords.length === 0) return [];
+  
+  const results = [];
+  
+  for (const client of existingClients) {
+    const existingNorm = normalizeForComparison(client.name);
+    const existingWords = splitWords(existingNorm);
+    
+    if (existingWords.length === 0) continue;
+    
+    // Проверка 1: Полное совпадение нормализованных строк
+    if (newNorm.replace(/\s+/g, '') === existingNorm.replace(/\s+/g, '')) {
+      results.push({ ...client, similarity: 1.0 });
+      continue;
+    }
+    
+    // Проверка 2: Слова в разном порядке (точное совпадение)
+    if (haveSameWords(newName, client.name)) {
+      results.push({ ...client, similarity: 0.99 });
+      continue;
+    }
+    
+    // Проверка 3: Пословное нечёткое совпадение
+    // Каждое слово из нового имени должно найти похожее в существующем
+    // и наоборот (чтобы "Анна" не совпадала с "Анна Булочкина")
+    
+    // Проверяем, что количество слов примерно совпадает
+    if (Math.abs(newWords.length - existingWords.length) > 1) continue;
+    
+    // Для каждого нового слова ищем похожее среди существующих
+    const usedExisting = new Set();
+    let allNewWordsMatched = true;
+    let totalSimilarity = 0;
+    
+    for (const newWord of newWords) {
+      let bestMatch = null;
+      let bestSim = 0;
+      
+      for (let i = 0; i < existingWords.length; i++) {
+        if (usedExisting.has(i)) continue;
+        
+        const existingWord = existingWords[i];
+        if (areWordsSimilar(newWord, existingWord)) {
+          const sim = jaroWinklerSimilarity(newWord, existingWord);
+          if (sim > bestSim) {
+            bestSim = sim;
+            bestMatch = i;
+          }
+        }
+      }
+      
+      if (bestMatch !== null) {
+        usedExisting.add(bestMatch);
+        totalSimilarity += bestSim;
+      } else {
+        allNewWordsMatched = false;
+        break;
+      }
+    }
+    
+    // Также проверяем, что не осталось лишних слов в существующем имени
+    const allExistingWordsMatched = usedExisting.size === existingWords.length || 
+                                     existingWords.length - usedExisting.size <= 1;
+    
+    if (allNewWordsMatched && allExistingWordsMatched) {
+      const avgSimilarity = totalSimilarity / newWords.length;
+      // Только если средняя похожесть слов достаточно высока
+      if (avgSimilarity >= 0.8) {
+        results.push({ ...client, similarity: avgSimilarity });
+      }
+    }
+  }
+  
+  // Сортируем по убыванию похожести
+  results.sort((a, b) => b.similarity - a.similarity);
+  
+  return results;
 }
 
