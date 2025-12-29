@@ -13,10 +13,67 @@
         
         .client-select-wrap { margin-bottom: 16px; }
         .client-select-wrap label { font-weight: 600; margin-right: 8px; }
-        .client-select-wrap select { padding: 8px 12px; font-size: 16px; border: 1px solid #e5e7eb; border-radius: 6px; min-width: 250px; }
-        .client-select-wrap input { padding: 8px 12px; font-size: 14px; border: 1px solid #e5e7eb; border-radius: 6px; width: 200px; }
+        
+        /* Autocomplete */
+        .autocomplete-container { position: relative; display: inline-block; }
+        .autocomplete-input { 
+            padding: 10px 14px; 
+            font-size: 15px; 
+            border: 2px solid #e5e7eb; 
+            border-radius: 8px; 
+            width: 320px;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .autocomplete-input:focus { 
+            outline: none; 
+            border-color: #667eea; 
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        }
+        .autocomplete-input.has-selection {
+            background: #f0fdf4;
+            border-color: #059669;
+        }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,.12);
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .autocomplete-dropdown.show { display: block; }
+        .autocomplete-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background 0.1s;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover,
+        .autocomplete-item.active { background: #f3f4f6; }
+        .autocomplete-item.selected { background: #ecfdf5; color: #059669; font-weight: 500; }
+        .autocomplete-item mark { 
+            background: #fef08a; 
+            color: inherit; 
+            padding: 0 1px;
+            border-radius: 2px;
+        }
+        .autocomplete-empty {
+            padding: 16px 14px;
+            color: #9ca3af;
+            text-align: center;
+            font-size: 14px;
+        }
         
         .balance-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center; }
+        .balance-card .client-name { font-size: 20px; font-weight: 600; margin-bottom: 8px; opacity: 0.95; }
         .balance-card .balance-number { font-size: 64px; font-weight: 700; line-height: 1; }
         .balance-card .balance-label { font-size: 14px; opacity: 0.9; margin-top: 4px; }
         .balance-card .balance-details { display: flex; justify-content: center; gap: 32px; margin-top: 16px; font-size: 14px; }
@@ -72,11 +129,11 @@
     <main>
         <div class="client-select-wrap row">
             <label for="clientSearch">Клиент:</label>
-            <input id="clientSearch" type="text" placeholder="Поиск клиента..." />
-            <select id="clientSelect">
-                <option value="">— Выберите клиента —</option>
-            </select>
-            <button id="addClientBtn" class="btn secondary">+ Клиент</button>
+            <div class="autocomplete-container">
+                <input id="clientSearch" type="text" class="autocomplete-input" placeholder="Начните вводить имя клиента..." autocomplete="off" />
+                <div id="clientDropdown" class="autocomplete-dropdown"></div>
+            </div>
+            <button id="addClientBtn" class="btn secondary">Добавить нового клиента</button>
         </div>
         
         <div id="noClientMessage" class="no-client">
@@ -85,6 +142,7 @@
         
         <div id="clientContent" style="display: none;">
             <div id="balanceCard" class="balance-card">
+                <div class="client-name" id="clientNameInCard"></div>
                 <div class="balance-number" id="balanceNumber">0</div>
                 <div class="balance-label">занятий осталось</div>
                 <div class="balance-details">
@@ -229,7 +287,6 @@
         async function loadClients() {
             try {
                 clients = await fetchJSON(`${API}/clients`);
-                renderClientSelect();
             } catch (err) {
                 console.error('Ошибка загрузки клиентов:', err);
             }
@@ -262,26 +319,87 @@
             }
         }
 
-        // ============ Рендеринг ============
-
-        function renderClientSelect() {
-            const select = document.getElementById('clientSelect');
-            const searchVal = document.getElementById('clientSearch').value.toLowerCase();
+        // ============ Autocomplete ============
+        
+        let activeIndex = -1;
+        let filteredClients = [];
+        
+        function highlightMatch(text, query) {
+            if (!query) return escapeHtml(text);
+            const lowerText = text.toLowerCase();
+            const lowerQuery = query.toLowerCase();
+            const idx = lowerText.indexOf(lowerQuery);
+            if (idx === -1) return escapeHtml(text);
             
-            select.innerHTML = '<option value="">— Выберите клиента —</option>';
+            const before = text.slice(0, idx);
+            const match = text.slice(idx, idx + query.length);
+            const after = text.slice(idx + query.length);
+            return escapeHtml(before) + '<mark>' + escapeHtml(match) + '</mark>' + escapeHtml(after);
+        }
+        
+        function renderDropdown() {
+            const dropdown = document.getElementById('clientDropdown');
+            const searchVal = document.getElementById('clientSearch').value.trim();
             
-            const filtered = searchVal 
-                ? clients.filter(c => c.name.toLowerCase().includes(searchVal))
-                : clients;
+            // Если нет поискового запроса, показываем всех (или скрываем)
+            if (!searchVal) {
+                filteredClients = clients.slice(0, 10); // Показываем первые 10
+            } else {
+                const lowerSearch = searchVal.toLowerCase();
+                filteredClients = clients.filter(c => c.name.toLowerCase().includes(lowerSearch));
+            }
             
-            for (const c of filtered) {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.name;
-                if (c.id === selectedClientId) opt.selected = true;
-                select.appendChild(opt);
+            if (filteredClients.length === 0) {
+                dropdown.innerHTML = '<div class="autocomplete-empty">Клиенты не найдены</div>';
+            } else {
+                dropdown.innerHTML = filteredClients.map((c, i) => {
+                    const isActive = i === activeIndex;
+                    const isSelected = c.id === selectedClientId;
+                    return `<div class="autocomplete-item${isActive ? ' active' : ''}${isSelected ? ' selected' : ''}" 
+                                 data-id="${c.id}" data-index="${i}">
+                        ${highlightMatch(c.name, searchVal)}
+                    </div>`;
+                }).join('');
             }
         }
+        
+        function showDropdown() {
+            const dropdown = document.getElementById('clientDropdown');
+            renderDropdown();
+            dropdown.classList.add('show');
+        }
+        
+        function hideDropdown() {
+            const dropdown = document.getElementById('clientDropdown');
+            dropdown.classList.remove('show');
+            activeIndex = -1;
+        }
+        
+        function selectClient(clientId) {
+            const client = clients.find(c => c.id === clientId);
+            if (!client) return;
+            
+            selectedClientId = clientId;
+            
+            // Обновляем UI
+            const input = document.getElementById('clientSearch');
+            input.value = '';
+            input.classList.add('has-selection');
+            input.placeholder = 'Выбрать другого клиента...';
+            
+            // Имя клиента в карточке баланса
+            document.getElementById('clientNameInCard').textContent = client.name;
+            
+            hideDropdown();
+            loadClientBalance(clientId);
+            
+            // Обновляем URL
+            const url = new URL(window.location);
+            url.searchParams.set('client_id', clientId);
+            window.history.replaceState({}, '', url);
+        }
+        
+        // ============ Рендеринг ============
 
         function renderTemplateSelect() {
             const select = document.getElementById('purchaseTemplate');
@@ -407,9 +525,7 @@
                 });
                 closeClientModal();
                 await loadClients();
-                selectedClientId = newClient.id;
-                document.getElementById('clientSelect').value = newClient.id;
-                loadClientBalance(newClient.id);
+                selectClient(newClient.id);
             } catch (err) {
                 console.error('Ошибка создания клиента:', err);
                 alert('Ошибка создания клиента');
@@ -562,15 +678,92 @@
 
         // ============ Обработчики ============
 
-        document.getElementById('clientSelect').addEventListener('change', (e) => {
-            selectedClientId = e.target.value ? Number(e.target.value) : null;
-            loadClientBalance(selectedClientId);
+        // Autocomplete обработчики
+        const clientSearchInput = document.getElementById('clientSearch');
+        const clientDropdown = document.getElementById('clientDropdown');
+        
+        clientSearchInput.addEventListener('focus', () => {
+            showDropdown();
         });
-
-        document.getElementById('clientSearch').addEventListener('input', () => {
-            renderClientSelect();
+        
+        clientSearchInput.addEventListener('input', () => {
+            activeIndex = -1;
+            showDropdown();
         });
-
+        
+        clientSearchInput.addEventListener('keydown', (e) => {
+            if (!clientDropdown.classList.contains('show')) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    showDropdown();
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                activeIndex = Math.min(activeIndex + 1, filteredClients.length - 1);
+                renderDropdown();
+                scrollActiveIntoView();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIndex = Math.max(activeIndex - 1, 0);
+                renderDropdown();
+                scrollActiveIntoView();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (activeIndex >= 0 && filteredClients[activeIndex]) {
+                    selectClient(filteredClients[activeIndex].id);
+                } else if (filteredClients.length === 1) {
+                    selectClient(filteredClients[0].id);
+                }
+            } else if (e.key === 'Escape') {
+                hideDropdown();
+                clientSearchInput.blur();
+            }
+        });
+        
+        function scrollActiveIntoView() {
+            const activeItem = clientDropdown.querySelector('.autocomplete-item.active');
+            if (activeItem) {
+                activeItem.scrollIntoView({ block: 'nearest' });
+            }
+        }
+        
+        clientDropdown.addEventListener('mousedown', (e) => {
+            // Prevent blur on input when clicking dropdown
+            e.preventDefault();
+        });
+        
+        clientDropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                selectClient(Number(item.dataset.id));
+            }
+        });
+        
+        clientDropdown.addEventListener('mouseover', (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                const newIndex = Number(item.dataset.index);
+                if (newIndex !== activeIndex) {
+                    // Убираем active с предыдущего
+                    const prevActive = clientDropdown.querySelector('.autocomplete-item.active');
+                    if (prevActive) prevActive.classList.remove('active');
+                    // Добавляем active новому
+                    item.classList.add('active');
+                    activeIndex = newIndex;
+                }
+            }
+        });
+        
+        // Скрытие dropdown при клике вне
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-container')) {
+                hideDropdown();
+            }
+        });
+        
         document.getElementById('addClientBtn').addEventListener('click', openClientModal);
         document.getElementById('clientModalCancel').addEventListener('click', closeClientModal);
         document.getElementById('clientModalSave').addEventListener('click', saveNewClient);
@@ -636,9 +829,7 @@
             if (clientIdFromUrl) {
                 const clientId = Number(clientIdFromUrl);
                 if (clients.find(c => c.id === clientId)) {
-                    selectedClientId = clientId;
-                    document.getElementById('clientSelect').value = clientId;
-                    loadClientBalance(clientId);
+                    selectClient(clientId);
                 }
             }
         })().catch(console.error);
