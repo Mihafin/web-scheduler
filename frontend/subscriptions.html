@@ -156,11 +156,11 @@
             
             <div class="lists">
                 <div class="list-card">
-                    <h4>📥 Покупки (приход)</h4>
+                    <h4 id="purchasesHeader">📥 Покупки (приход)</h4>
                     <ul id="purchasesList"></ul>
                 </div>
                 <div class="list-card">
-                    <h4>📤 Расходы (занятия)</h4>
+                    <h4 id="expensesHeader">📤 Расходы (занятия)</h4>
                     <ul id="expensesList"></ul>
                 </div>
             </div>
@@ -487,6 +487,10 @@
             const ul = document.getElementById('purchasesList');
             ul.innerHTML = '';
             
+            // Обновляем заголовок с суммой занятий
+            const totalLessons = purchases.reduce((sum, p) => sum + p.lessonsCount, 0);
+            document.getElementById('purchasesHeader').textContent = `📥 Покупки (приход), всего ${totalLessons}`;
+            
             if (purchases.length === 0) {
                 ul.innerHTML = '<li class="empty">Нет покупок</li>';
                 return;
@@ -541,6 +545,9 @@
         function renderExpenses(expenses) {
             const ul = document.getElementById('expensesList');
             ul.innerHTML = '';
+            
+            // Обновляем заголовок с количеством расходов
+            document.getElementById('expensesHeader').textContent = `📤 Расходы (занятия), всего ${expenses.length}`;
             
             if (expenses.length === 0) {
                 ul.innerHTML = '<li class="empty">Нет расходов</li>';
