@@ -151,6 +151,13 @@ class SubscriptionPurchaseCreate(SubscriptionPurchaseBase):
     pass
 
 
+class SubscriptionPurchaseUpdate(BaseModel):
+    lessonsCount: int = Field(gt=0)
+    purchaseDate: str
+    expiryDate: str
+    comment: Optional[str] = None
+
+
 class SubscriptionPurchaseOut(BaseModel):
     id: int
     clientId: int

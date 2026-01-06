@@ -79,6 +79,48 @@ def create_purchase(
     )
 
 
+@router.put("/purchases/{purchase_id}", response_model=schemas.SubscriptionPurchaseOut)
+def update_purchase(
+    purchase_id: int,
+    data: schemas.SubscriptionPurchaseUpdate,
+    db: Session = Depends(get_db),
+    user: str | None = Depends(get_remote_user)
+):
+    """Обновить покупку абонемента."""
+    purchase = db.get(models.SubscriptionPurchase, purchase_id)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    
+    old_values = f"lessons={purchase.lessons_count}; date={purchase.purchase_date}; expiry={purchase.expiry_date}; comment={purchase.comment}"
+    
+    purchase.lessons_count = data.lessonsCount
+    purchase.purchase_date = data.purchaseDate
+    purchase.expiry_date = data.expiryDate
+    purchase.comment = data.comment
+    
+    db.commit()
+    db.refresh(purchase)
+    
+    new_values = f"lessons={purchase.lessons_count}; date={purchase.purchase_date}; expiry={purchase.expiry_date}; comment={purchase.comment}"
+    
+    try:
+        client = db.get(models.Client, purchase.client_id)
+        client_name = client.name if client else "?"
+        write_audit_log(db, user, "UPDATE", "subscription_purchases", purchase_id,
+                        details=f"client={client_name}; old=[{old_values}]; new=[{new_values}]")
+    except Exception:
+        pass
+    
+    return schemas.SubscriptionPurchaseOut(
+        id=purchase.id,
+        clientId=purchase.client_id,
+        lessonsCount=purchase.lessons_count,
+        purchaseDate=purchase.purchase_date,
+        expiryDate=purchase.expiry_date,
+        comment=purchase.comment
+    )
+
+
 @router.delete("/purchases/{purchase_id}", status_code=204)
 def delete_purchase(
     purchase_id: int,

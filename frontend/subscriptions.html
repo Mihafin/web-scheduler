@@ -99,6 +99,9 @@
         .list-card .item-partial { color: #d97706; font-size: 11px; }
         .list-card .item-expired { color: #b91c1c; font-size: 11px; }
         .list-card li.used-up-row { background: #f9fafb; opacity: 0.7; }
+        .list-card .item-actions { display: flex; gap: 4px; }
+        .list-card .edit-btn { background: transparent; border: none; color: #6b7280; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+        .list-card .edit-btn:hover { color: #3b82f6; }
         .list-card .delete-btn { background: transparent; border: none; color: #b91c1c; cursor: pointer; font-size: 16px; padding: 2px 6px; }
         .list-card .empty { padding: 24px; text-align: center; color: #6b7280; }
         
@@ -193,11 +196,12 @@
         </div>
     </div>
 
-    <!-- Модалка добавления покупки -->
+    <!-- Модалка покупки (создание/редактирование) -->
     <div id="purchaseModal" class="modal-backdrop hidden">
         <div class="modal">
-            <h3>Новая покупка</h3>
-            <div class="form-group">
+            <h3 id="purchaseModalTitle">Новая покупка</h3>
+            <input type="hidden" id="purchaseId" />
+            <div class="form-group" id="purchaseTemplateGroup">
                 <label for="purchaseTemplate">Шаблон (тип абонемента)</label>
                 <select id="purchaseTemplate">
                     <option value="">— Выбрать шаблон —</option>
@@ -221,7 +225,7 @@
             </div>
             <div class="actions">
                 <button id="purchaseModalCancel" class="btn secondary">Отмена</button>
-                <button id="purchaseModalSave" class="btn success">Добавить</button>
+                <button id="purchaseModalSave" class="btn success">Сохранить</button>
             </div>
         </div>
     </div>
@@ -518,11 +522,17 @@
                         <div class="item-date">${formatDate(p.purchaseDate)} — <span class="${lessonsClass}">+${p.lessonsCount} зан.</span> ${statusBadge}</div>
                         <div class="item-comment">${escapeHtml(p.comment || '')} ${expired ? '<span class="item-expired">(просрочен)</span>' : `<span class="muted">до ${formatDate(p.expiryDate)}</span>`}</div>
                     </div>
-                    <button class="delete-btn" data-id="${p.id}" title="Удалить">×</button>
+                    <div class="item-actions">
+                        <button class="edit-btn" data-purchase='${JSON.stringify(p).replace(/'/g, "&#39;")}' title="Редактировать">✎</button>
+                        <button class="delete-btn" data-id="${p.id}" title="Удалить">×</button>
+                    </div>
                 `;
                 ul.appendChild(li);
             }
             
+            ul.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => openPurchaseModal(JSON.parse(btn.dataset.purchase)));
+            });
             ul.querySelectorAll('.delete-btn').forEach(btn => {
                 btn.addEventListener('click', () => deletePurchase(Number(btn.dataset.id)));
             });
@@ -618,23 +628,41 @@
             }
         }
 
-        function openPurchaseModal() {
+        let editingPurchaseId = null; // null = создание, число = редактирование
+
+        function openPurchaseModal(purchase = null) {
             if (!selectedClientId) {
                 alert('Сначала выберите клиента');
                 return;
             }
             
-            const today = new Date();
-            document.getElementById('purchaseTemplate').value = '';
-            document.getElementById('purchaseLessons').value = 5;
-            document.getElementById('purchaseDate').value = toDateInputValue(today);
-            document.getElementById('purchaseExpiry').value = toDateInputValue(addDays(today, 30));
-            document.getElementById('purchaseComment').value = '';
+            const isEdit = purchase !== null;
+            editingPurchaseId = isEdit ? purchase.id : null;
+            
+            // Обновляем заголовок и видимость шаблона
+            document.getElementById('purchaseModalTitle').textContent = isEdit ? 'Редактировать покупку' : 'Новая покупка';
+            document.getElementById('purchaseTemplateGroup').style.display = isEdit ? 'none' : 'block';
+            
+            if (isEdit) {
+                document.getElementById('purchaseLessons').value = purchase.lessonsCount;
+                document.getElementById('purchaseDate').value = purchase.purchaseDate.split('T')[0];
+                document.getElementById('purchaseExpiry').value = purchase.expiryDate.split('T')[0];
+                document.getElementById('purchaseComment').value = purchase.comment || '';
+            } else {
+                const today = new Date();
+                document.getElementById('purchaseTemplate').value = '';
+                document.getElementById('purchaseLessons').value = 5;
+                document.getElementById('purchaseDate').value = toDateInputValue(today);
+                document.getElementById('purchaseExpiry').value = toDateInputValue(addDays(today, 30));
+                document.getElementById('purchaseComment').value = '';
+            }
+            
             document.getElementById('purchaseModal').classList.remove('hidden');
         }
 
         function closePurchaseModal() {
             document.getElementById('purchaseModal').classList.add('hidden');
+            editingPurchaseId = null;
         }
 
         async function savePurchase() {
@@ -656,23 +684,27 @@
                 return;
             }
             
+            const isEdit = editingPurchaseId !== null;
+            const url = isEdit 
+                ? `${API}/subscriptions/purchases/${editingPurchaseId}` 
+                : `${API}/subscriptions/purchases`;
+            const method = isEdit ? 'PUT' : 'POST';
+            
+            const body = isEdit 
+                ? { lessonsCount, purchaseDate: new Date(purchaseDate).toISOString(), expiryDate: new Date(expiryDate).toISOString(), comment: comment || null }
+                : { clientId: selectedClientId, lessonsCount, purchaseDate: new Date(purchaseDate).toISOString(), expiryDate: new Date(expiryDate).toISOString(), comment: comment || null };
+            
             try {
-                await fetchJSON(`${API}/subscriptions/purchases`, {
-                    method: 'POST',
+                await fetchJSON(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        clientId: selectedClientId,
-                        lessonsCount,
-                        purchaseDate: new Date(purchaseDate).toISOString(),
-                        expiryDate: new Date(expiryDate).toISOString(),
-                        comment: comment || null
-                    })
+                    body: JSON.stringify(body)
                 });
                 closePurchaseModal();
                 loadClientBalance(selectedClientId);
             } catch (err) {
-                console.error('Ошибка создания покупки:', err);
-                alert('Ошибка создания покупки');
+                console.error(isEdit ? 'Ошибка обновления покупки:' : 'Ошибка создания покупки:', err);
+                alert(isEdit ? 'Ошибка обновления покупки' : 'Ошибка создания покупки');
             }
         }
 
@@ -850,7 +882,7 @@
             }
         });
 
-        document.getElementById('addPurchaseBtn').addEventListener('click', openPurchaseModal);
+        document.getElementById('addPurchaseBtn').addEventListener('click', () => openPurchaseModal());
         document.getElementById('purchaseModalCancel').addEventListener('click', closePurchaseModal);
         document.getElementById('purchaseModalSave').addEventListener('click', savePurchase);
 
