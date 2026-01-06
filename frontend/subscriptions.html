@@ -70,11 +70,10 @@
         
         .balance-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center; }
         .balance-card .client-name { font-size: 40px; font-weight: 600; margin-bottom: 8px; opacity: 0.95; }
-        .balance-card .balance-number { font-size: 64px; font-weight: 700; line-height: 1; }
-        .balance-card .balance-label { font-size: 14px; opacity: 0.9; margin-top: 4px; }
-        .balance-card .balance-details { display: flex; justify-content: center; gap: 32px; margin-top: 16px; font-size: 14px; }
-        .balance-card .balance-details span { opacity: 0.85; }
+        .balance-card .active-subscription-name { font-size: 22px; font-weight: 500; opacity: 0.95; margin-bottom: 4px; }
+        .balance-card .active-subscription-usage { font-size: 16px; opacity: 0.85; }
         .balance-negative { background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%); }
+        .balance-empty { background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%); }
         
         .actions-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
         .btn { padding: 8px 14px; border: 1px solid #e5e7eb; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; }
@@ -143,12 +142,8 @@
         <div id="clientContent" style="display: none;">
             <div id="balanceCard" class="balance-card">
                 <div class="client-name" id="clientNameInCard"></div>
-                <div class="balance-number" id="balanceNumber">0</div>
-                <div class="balance-label">занятий осталось</div>
-                <div class="balance-details">
-                    <span>Куплено: <strong id="totalPurchased">0</strong></span>
-                    <span>Использовано: <strong id="totalSpent">0</strong></span>
-                </div>
+                <div class="active-subscription-name" id="activeSubName">—</div>
+                <div class="active-subscription-usage" id="activeSubUsage"></div>
             </div>
             
             <div class="actions-bar">
@@ -416,19 +411,72 @@
         }
 
         function renderBalance(data) {
-            document.getElementById('balanceNumber').textContent = data.balance;
-            document.getElementById('totalPurchased').textContent = data.totalPurchased;
-            document.getElementById('totalSpent').textContent = data.totalSpent;
-            
             const card = document.getElementById('balanceCard');
-            if (data.balance < 0) {
+            card.classList.remove('balance-negative', 'balance-empty');
+            
+            // Находим текущий активный абонемент по FIFO
+            const { activeSubscription: activeInfo } = calcPurchaseStatuses(data.purchases, data.totalSpent);
+            
+            const activeSubName = document.getElementById('activeSubName');
+            const activeSubUsage = document.getElementById('activeSubUsage');
+            
+            if (activeInfo) {
+                activeSubName.textContent = activeInfo.name || 'Абонемент';
+                activeSubUsage.textContent = `Использовано: ${activeInfo.usedFromThis} из ${activeInfo.lessonsCount}`;
+                if (data.balance < 0) {
+                    card.classList.add('balance-negative');
+                }
+            } else if (data.balance < 0) {
+                activeSubName.textContent = 'Нет активного абонемента';
+                activeSubUsage.textContent = `Долг: ${Math.abs(data.balance)} занятий`;
                 card.classList.add('balance-negative');
             } else {
-                card.classList.remove('balance-negative');
+                activeSubName.textContent = 'Нет абонементов';
+                activeSubUsage.textContent = '';
+                card.classList.add('balance-empty');
             }
             
             renderPurchases(data.purchases, data.totalSpent);
             renderExpenses(data.expenses);
+        }
+        
+        // Вычисляет статус каждой покупки по FIFO и возвращает Map + активный абонемент
+        function calcPurchaseStatuses(purchases, totalSpent) {
+            const statusMap = new Map(); // id -> { usedUp: bool, usedFromThis: number, purchase: obj }
+            let activeSubscription = null;
+            
+            if (purchases.length === 0) {
+                return { statusMap, activeSubscription };
+            }
+            
+            // Сортируем покупки по дате (старые первыми) для FIFO
+            const sortedPurchases = [...purchases].sort((a, b) => 
+                new Date(a.purchaseDate) - new Date(b.purchaseDate) || a.id - b.id
+            );
+            
+            let usedSoFar = 0;
+            
+            for (const p of sortedPurchases) {
+                const remaining = totalSpent - usedSoFar;
+                if (remaining <= 0) {
+                    // Ещё не израсходовано
+                    statusMap.set(p.id, { usedUp: false, usedFromThis: 0 });
+                    if (!activeSubscription) {
+                        activeSubscription = { name: p.comment, lessonsCount: p.lessonsCount, usedFromThis: 0 };
+                    }
+                } else if (remaining >= p.lessonsCount) {
+                    // Полностью израсходована
+                    statusMap.set(p.id, { usedUp: true, usedFromThis: p.lessonsCount });
+                    usedSoFar += p.lessonsCount;
+                } else {
+                    // Частично израсходована — это текущий активный
+                    statusMap.set(p.id, { usedUp: false, usedFromThis: remaining });
+                    activeSubscription = { name: p.comment, lessonsCount: p.lessonsCount, usedFromThis: remaining };
+                    usedSoFar += remaining;
+                }
+            }
+            
+            return { statusMap, activeSubscription };
         }
 
         function renderPurchases(purchases, totalSpent) {
@@ -440,34 +488,16 @@
                 return;
             }
             
-            // Сортируем покупки по дате (старые первыми) для расчёта FIFO
-            const sortedPurchases = [...purchases].sort((a, b) => 
-                new Date(a.purchaseDate) - new Date(b.purchaseDate)
+            const { statusMap } = calcPurchaseStatuses(purchases, totalSpent);
+            
+            // Для отображения — новые сверху (обратный порядок)
+            const displayPurchases = [...purchases].sort((a, b) => 
+                new Date(b.purchaseDate) - new Date(a.purchaseDate) || b.id - a.id
             );
             
-            // Вычисляем статус каждой покупки по FIFO
-            let usedSoFar = 0;
-            const purchaseStatus = new Map(); // id -> { usedUp: bool, usedFromThis: number }
-            
-            for (const p of sortedPurchases) {
-                const remaining = totalSpent - usedSoFar;
-                if (remaining <= 0) {
-                    // Ещё не израсходовано
-                    purchaseStatus.set(p.id, { usedUp: false, usedFromThis: 0 });
-                } else if (remaining >= p.lessonsCount) {
-                    // Полностью израсходована
-                    purchaseStatus.set(p.id, { usedUp: true, usedFromThis: p.lessonsCount });
-                    usedSoFar += p.lessonsCount;
-                } else {
-                    // Частично израсходована
-                    purchaseStatus.set(p.id, { usedUp: false, usedFromThis: remaining });
-                    usedSoFar += remaining;
-                }
-            }
-            
-            for (const p of purchases) {
+            for (const p of displayPurchases) {
                 const expired = isExpired(p.expiryDate);
-                const status = purchaseStatus.get(p.id) || { usedUp: false, usedFromThis: 0 };
+                const status = statusMap.get(p.id) || { usedUp: false, usedFromThis: 0 };
                 const li = document.createElement('li');
                 
                 if (status.usedUp) {
