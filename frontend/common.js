@@ -30,6 +30,70 @@ function pad(n) {
 }
 
 /**
+ * Расписание студии: время в БД — UTC-метки (часы/минуты = «на стене студии»), без привязки к поясу браузера.
+ * datetime-local (YYYY-MM-DDTHH:MM) → ISO с теми же числами в UTC (…Z).
+ * @param {string} val
+ * @returns {string}
+ */
+function studioDatetimeLocalToIso(val) {
+  if (!val) return '';
+  const [datePart, timePart = '00:00'] = val.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hh, mm || 0, 0, 0)).toISOString();
+}
+
+/**
+ * ISO (UTC-метка расписания) → значение для input[type="datetime-local"]
+ * @param {string} iso
+ * @returns {string}
+ */
+function isoToStudioDatetimeLocal(iso) {
+  const d = new Date(iso);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/**
+ * UTC-метка расписания → YYYY-MM-DD HH:MM (по UTC-компонентам)
+ * @param {string} iso
+ * @returns {string}
+ */
+function formatStudioNoSeconds(iso) {
+  const d = new Date(iso);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/**
+ * UTC-метка расписания → HH:MM
+ * @param {string} iso
+ * @returns {string}
+ */
+function hhmmStudio(iso) {
+  const d = new Date(iso);
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/**
+ * Строка input[type="date"] YYYY-MM-DD → начало этого календарного дня как UTC-метка (для фильтра API)
+ * @param {string} yyyyMmDd
+ * @returns {string}
+ */
+function studioDateInputStartIso(yyyyMmDd) {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0)).toISOString();
+}
+
+/**
+ * Строка input[type="date"] → начало следующего календарного дня (полуоткрытый интервал «по»)
+ * @param {string} yyyyMmDd
+ * @returns {string}
+ */
+function studioDateInputNextDayStartIso(yyyyMmDd) {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0)).toISOString();
+}
+
+/**
  * ISO → локальное время без секунд: YYYY-MM-DD HH:MM
  * @param {string} iso
  * @returns {string}
@@ -50,7 +114,7 @@ function isoToLocalInputValue(iso) {
 }
 
 /**
- * Значение input[type="datetime-local"] → ISO
+ * Значение input[type="datetime-local"] → ISO (локаль браузера)
  * @param {string} val
  * @returns {string}
  */
@@ -94,13 +158,22 @@ function nextDayStartLocalISO(d) {
 function beautifyErrorMessage(msg) {
   const isoRe = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g;
   return String(msg).replace(isoRe, (m) => {
-    try { return formatLocalNoSeconds(m); } catch (_) { return m; }
+    try { return formatStudioNoSeconds(m); } catch (_) { return m; }
   });
 }
 
 // ============ Дни недели ============
 
 const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+/**
+ * Заголовок дня для отчёта: «Пн. dd.mm.yyyy» по UTC-метке полуночи
+ * @param {Date} d — момент, UTC-компоненты = дата дня
+ * @returns {string}
+ */
+function fmtStudioDay(d) {
+  return `${WEEKDAYS[d.getUTCDay()]}. ${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`;
+}
 
 /**
  * Форматировать дату: "Пн. 01.01.2025"

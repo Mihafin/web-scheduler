@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS tag_values (
 CREATE TABLE IF NOT EXISTS schedules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
-  -- Даты хранятся как ISO-8601 строки: YYYY-MM-DDTHH:MM:SS или с timezone
+  -- Время студии: ISO UTC (...Z), цифры часов/минут = «на стене» студии (см. фронт: timeZone UTC + Date.UTC)
   date_from TEXT NOT NULL,
   date_to TEXT NOT NULL,
   -- Признак отмены события (отображается перечёркнутым, не удаляется)

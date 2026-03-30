@@ -124,7 +124,8 @@
         const groups = new Map();
         for(const ev of sortedEvents){
           const d = new Date(ev.dateFrom);
-          const key = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0).toISOString();
+          const y = d.getUTCFullYear(), mo = d.getUTCMonth(), da = d.getUTCDate();
+          const key = new Date(Date.UTC(y, mo, da, 0, 0, 0, 0)).toISOString();
           if(!groups.has(key)) groups.set(key, []);
           groups.get(key).push(ev);
         }
@@ -145,10 +146,10 @@
         for(const dayIso of keys){
           const day = new Date(dayIso);
           const wrap = document.createElement('div'); wrap.className = 'day';
-          const h = document.createElement('h3'); h.textContent = fmtDay(day); wrap.appendChild(h);
+          const h = document.createElement('h3'); h.textContent = fmtStudioDay(day); wrap.appendChild(h);
           const list = document.createElement('div');
           for(const ev of groups.get(dayIso)){
-            const from = hhmmLocal(ev.dateFrom); const to = hhmmLocal(ev.dateTo);
+            const from = hhmmStudio(ev.dateFrom); const to = hhmmStudio(ev.dateTo);
             const valuesFlat = [];
             for(const tvId of ev.tagValueIds){
               const tagId = tagValueIdToTagId.get(tvId);
@@ -171,10 +172,9 @@
         const f = document.getElementById('fromDate').value;
         const t = document.getElementById('toDate').value;
         if(!f || !t){ alert('Укажите даты С и По'); return; }
-        const fd = new Date(f); const td = new Date(t);
-        if(td < fd){ alert('Дата По не может быть меньше даты С'); return; }
-        const fromIso = startOfDayLocalISO(fd);
-        const toIso = nextDayStartLocalISO(td);
+        if(f > t){ alert('Дата По не может быть меньше даты С'); return; }
+        const fromIso = studioDateInputStartIso(f);
+        const toIso = studioDateInputNextDayStartIso(t);
         const params = new URLSearchParams();
         params.set('from', fromIso); params.set('to', toIso);
         if(SELECTED_VALUE_IDS.size){ params.set('tag_value_ids', Array.from(SELECTED_VALUE_IDS).join(',')); }
